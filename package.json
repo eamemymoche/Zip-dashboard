@@ -14,5 +14,11 @@
     "db:generate": "node ./node_modules/prisma/build/index.js generate --schema packages/db/prisma/schema.prisma",
     "db:migrate": "node ./node_modules/prisma/build/index.js migrate dev --schema packages/db/prisma/schema.prisma",
     "db:seed": "node packages/db/prisma/seed.mjs"
+  },
+  "dependencies": {
+    "@prisma/client": "^7.8.0"
+  },
+  "devDependencies": {
+    "prisma": "^7.8.0"
   }
 }
