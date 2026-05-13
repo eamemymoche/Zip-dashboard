@@ -151,3 +151,33 @@
 ### Notes
 - Current data loading supports Prisma/PostgreSQL when `DATABASE_URL` is available; otherwise dashboard falls back to seed data.
 - Several edit workflows in dashboard still update local client state and are not fully persisted to DB yet.
+
+## 2026-05-14 UI Follow-up (Transport / Staffing / Navigation / Vercel)
+
+### Done
+- [x] Vercel build fix in `apps/web/package.json`: run `npx prisma generate --schema=../../packages/db/prisma/schema.prisma` before `next build`.
+- [x] Added local package dependencies in `apps/web/package.json` for Vercel workspace builds: `@prisma/client` + `prisma`.
+- [x] Restored stable single-date picker behavior for dashboard date controls (removed problematic drag-range behavior in Order List context).
+- [x] Fixed Overview datepicker popover overflow on right edge by anchoring Overview picker popover to the right side.
+- [x] Order List detail panel alignment updates:
+  - status + waiting badge + edit/delete arranged inline
+  - status group offset tuned (left shift while edit/delete remained fixed)
+  - note moved inline with status/action row when note exists
+- [x] Order List filter panel cleanup:
+  - removed quick checkboxes (`เมื่อวาน/วันนี้/พรุ่งนี้`)
+  - removed clear filter button
+  - increased label typography and matched date control height to search input
+- [x] Sidebar navigation polish:
+  - replaced emoji navigation icons with professional inline SVG icons
+  - updated menu order so `บุคลากร` appears below `งานสตาฟ`
+- [x] Transport > Assign updates:
+  - restored `Admin Note` as editable input column in table (not display-only note)
+  - note can be edited directly per row
+- [x] Staffing > Setup filter row refinement:
+  - date, `ทุกรอบ`, and `ทุก Package` controls aligned in one row
+  - label corrected from `Packet` to `Package`
+- [x] Order List top time card text size increased for better readability.
+
+### Current verification notes
+- Local UI state edits are visible and interactive in dashboard.
+- Database-backed read path still depends on `DATABASE_URL` availability; fallback seed remains active when DB is unavailable.

@@ -2,6 +2,9 @@
 
 แดชบอร์ดปฏิบัติการ (ภาษาไทย) สำหรับงานรายการออเดอร์, จัดรถ, ใบงานคนขับ, staffing และ master data
 
+## Demo Live
+https://zip-dashboard-web-eight.vercel.app/
+
 ## โครงสร้างหลัก
 
 - `apps/web` - Next.js frontend
