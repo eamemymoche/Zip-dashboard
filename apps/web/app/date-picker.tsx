@@ -1,8 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
-
-type RangeRole = "start" | "end";
+import { useEffect, useRef, useState } from "react";
 
 interface DatePickerProps {
   value: string;
@@ -12,7 +10,7 @@ interface DatePickerProps {
   lang?: "th" | "en";
   rangeStart?: string;
   rangeEnd?: string;
-  rangeRole?: RangeRole;
+  rangeRole?: "start" | "end";
   onRangeChange?: (start: string, end: string) => void;
 }
 
@@ -27,10 +25,6 @@ const EN_MONTHS = [
 const TH_DAYS = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"];
 const EN_DAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
-function parseISO(value: string): Date {
-  return new Date(`${value}T00:00:00`);
-}
-
 function toISO(date: Date): string {
   const yyyy = date.getFullYear();
   const mm = String(date.getMonth() + 1).padStart(2, "0");
@@ -38,46 +32,20 @@ function toISO(date: Date): string {
   return `${yyyy}-${mm}-${dd}`;
 }
 
-function monthGrid(year: number, month: number) {
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const firstDow = new Date(year, month, 1).getDay();
-  const cells: (number | null)[] = [];
-  for (let i = 0; i < firstDow; i += 1) cells.push(null);
-  for (let d = 1; d <= daysInMonth; d += 1) cells.push(d);
-  return cells;
-}
-
-export function DatePicker({
-  value,
-  onChange,
-  className,
-  style,
-  lang = "th",
-  rangeStart,
-  rangeEnd,
-  rangeRole = "start",
-  onRangeChange
-}: DatePickerProps) {
-  const isRangeMode = Boolean(onRangeChange && rangeStart && rangeEnd);
-  const selectedDate = useMemo(() => (value ? parseISO(value) : new Date()), [value]);
-  const ref = useRef<HTMLDivElement>(null);
-
+export function DatePicker({ value, onChange, className, style, lang = "th" }: DatePickerProps) {
   const [open, setOpen] = useState(false);
-  const [viewYear, setViewYear] = useState(() => selectedDate.getFullYear());
-  const [viewMonth, setViewMonth] = useState(() => selectedDate.getMonth());
-  const [dragging, setDragging] = useState(false);
-  const [dragAnchor, setDragAnchor] = useState<string | null>(null);
-  const [previewStart, setPreviewStart] = useState<string | null>(null);
-  const [previewEnd, setPreviewEnd] = useState<string | null>(null);
+  const [viewYear, setViewYear] = useState(() =>
+    value ? new Date(`${value}T00:00:00`).getFullYear() : new Date().getFullYear()
+  );
+  const [viewMonth, setViewMonth] = useState(() =>
+    value ? new Date(`${value}T00:00:00`).getMonth() : new Date().getMonth()
+  );
+  const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) {
         setOpen(false);
-        setDragging(false);
-        setDragAnchor(null);
-        setPreviewStart(null);
-        setPreviewEnd(null);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -85,21 +53,16 @@ export function DatePicker({
   }, []);
 
   useEffect(() => {
-    if (!isRangeMode || !dragging || !dragAnchor) return;
-    const handleMouseUp = () => {
-      setDragging(false);
-      setDragAnchor(null);
-      setPreviewStart(null);
-      setPreviewEnd(null);
-    };
-    window.addEventListener("mouseup", handleMouseUp);
-    return () => window.removeEventListener("mouseup", handleMouseUp);
-  }, [dragging, dragAnchor, isRangeMode]);
+    if (!value) return;
+    const d = new Date(`${value}T00:00:00`);
+    setViewYear(d.getFullYear());
+    setViewMonth(d.getMonth());
+  }, [value]);
 
-  useEffect(() => {
-    setViewYear(selectedDate.getFullYear());
-    setViewMonth(selectedDate.getMonth());
-  }, [selectedDate]);
+  function parseValue() {
+    if (!value) return new Date();
+    return new Date(`${value}T00:00:00`);
+  }
 
   function formatDisplay(date: Date) {
     if (lang === "th") {
@@ -108,63 +71,11 @@ export function DatePicker({
     return date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
   }
 
-  function isToday(iso: string) {
-    return iso === toISO(new Date());
-  }
-
-  function normalizeRange(a: string, b: string) {
-    return a <= b ? { start: a, end: b } : { start: b, end: a };
-  }
-
-  function pickSingle(iso: string) {
-    if (isRangeMode && rangeStart && rangeEnd && onRangeChange) {
-      if (rangeRole === "start") {
-        onRangeChange(iso, iso > rangeEnd ? iso : rangeEnd);
-      } else {
-        onRangeChange(iso < rangeStart ? iso : rangeStart, iso);
-      }
-      onChange(iso);
-      setOpen(false);
-      return;
-    }
-    onChange(iso);
+  function handleSelect(day: number) {
+    const mm = String(viewMonth + 1).padStart(2, "0");
+    const dd = String(day).padStart(2, "0");
+    onChange(`${viewYear}-${mm}-${dd}`);
     setOpen(false);
-  }
-
-  function commitDrag(iso: string) {
-    if (!isRangeMode || !dragAnchor || !onRangeChange) return;
-    const n = normalizeRange(dragAnchor, iso);
-    onRangeChange(n.start, n.end);
-    onChange(rangeRole === "start" ? n.start : n.end);
-    setDragging(false);
-    setDragAnchor(null);
-    setPreviewStart(null);
-    setPreviewEnd(null);
-    setOpen(false);
-  }
-
-  function handleMouseDownDay(iso: string, event: ReactMouseEvent<HTMLButtonElement>) {
-    event.preventDefault();
-    if (!isRangeMode) {
-      pickSingle(iso);
-      return;
-    }
-    setDragging(true);
-    setDragAnchor(iso);
-    setPreviewStart(iso);
-    setPreviewEnd(iso);
-  }
-
-  function handleMouseEnterDay(iso: string) {
-    if (!isRangeMode || !dragging || !dragAnchor) return;
-    const n = normalizeRange(dragAnchor, iso);
-    setPreviewStart(n.start);
-    setPreviewEnd(n.end);
-  }
-
-  function handleMouseUpDay(iso: string) {
-    if (!isRangeMode || !dragging) return;
-    commitDrag(iso);
   }
 
   function prevMonth() {
@@ -186,59 +97,32 @@ export function DatePicker({
   }
 
   function goToday() {
-    const todayIso = toISO(new Date());
-    const today = parseISO(todayIso);
-    setViewYear(today.getFullYear());
-    setViewMonth(today.getMonth());
-    pickSingle(todayIso);
+    const t = new Date();
+    const iso = toISO(t);
+    setViewYear(t.getFullYear());
+    setViewMonth(t.getMonth());
+    onChange(iso);
+    setOpen(false);
   }
 
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+  const firstDayOfWeek = new Date(viewYear, viewMonth, 1).getDay();
+  const cells: (number | null)[] = [];
+  for (let i = 0; i < firstDayOfWeek; i += 1) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d += 1) cells.push(d);
+
+  const selected = parseValue();
   const months = lang === "th" ? TH_MONTHS : EN_MONTHS;
   const days = lang === "th" ? TH_DAYS : EN_DAYS;
-  const secondMonth = viewMonth === 11 ? 0 : viewMonth + 1;
-  const secondYear = viewMonth === 11 ? viewYear + 1 : viewYear;
-  const activeRangeStart = previewStart ?? rangeStart ?? "";
-  const activeRangeEnd = previewEnd ?? rangeEnd ?? "";
+  const today = toISO(new Date());
 
-  const renderMonth = (year: number, month: number, key: string) => {
-    const cells = monthGrid(year, month);
-    return (
-      <div className="dp-month" key={key}>
-        <div className="dp-month-title">
-          {months[month]} {lang === "th" ? year + 543 : year}
-        </div>
-        <div className="dp-grid">
-          {days.map((d) => (
-            <span key={`${key}-${d}`} className="dp-day-label">{d}</span>
-          ))}
-          {cells.map((d, i) => {
-            if (d === null) return <span key={`${key}-empty-${i}`} />;
-            const iso = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-            const selected = iso === value;
-            const inRange = isRangeMode && activeRangeStart && activeRangeEnd && iso >= activeRangeStart && iso <= activeRangeEnd;
-            return (
-              <button
-                key={`${key}-${d}`}
-                type="button"
-                onMouseDown={(event) => handleMouseDownDay(iso, event)}
-                onMouseEnter={() => handleMouseEnterDay(iso)}
-                onMouseUp={() => handleMouseUpDay(iso)}
-                onClick={() => (isRangeMode ? undefined : pickSingle(iso))}
-                className={[
-                  "dp-day",
-                  selected ? "dp-day-selected" : "",
-                  isToday(iso) ? "dp-day-today" : "",
-                  inRange ? "dp-day-in-range" : ""
-                ].join(" ").trim()}
-              >
-                {d}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    );
+  const isToday = (d: number) => {
+    const iso = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    return iso === today;
   };
+
+  const isSelected = (d: number) =>
+    d === selected.getDate() && viewMonth === selected.getMonth() && viewYear === selected.getFullYear();
 
   return (
     <div ref={ref} style={{ position: "relative", display: "inline-block" }} className={className}>
@@ -268,19 +152,30 @@ export function DatePicker({
           <line x1="8" y1="2" x2="8" y2="6" />
           <line x1="16" y1="2" x2="16" y2="6" />
         </svg>
-        {value ? formatDisplay(selectedDate) : "Select date"}
+        {value ? formatDisplay(parseValue()) : "เลือกวันที่"}
       </button>
 
       {open ? (
-        <div className={`date-picker-popover ${isRangeMode ? "date-picker-range" : ""}`}>
+        <div className="date-picker-popover">
           <div className="dp-header">
             <button type="button" onClick={prevMonth} className="dp-nav-btn">‹</button>
-            <span className="dp-month-label">{isRangeMode ? "Select date range" : "Select date"}</span>
+            <span className="dp-month-label">{months[viewMonth]} {lang === "th" ? viewYear + 543 : viewYear}</span>
             <button type="button" onClick={nextMonth} className="dp-nav-btn">›</button>
           </div>
-          <div className={`dp-months ${isRangeMode ? "double" : "single"}`}>
-            {renderMonth(viewYear, viewMonth, "m1")}
-            {isRangeMode ? renderMonth(secondYear, secondMonth, "m2") : null}
+          <div className="dp-grid">
+            {days.map((d) => <span key={d} className="dp-day-label">{d}</span>)}
+            {cells.map((d, i) => (
+              d === null ? <span key={`empty-${i}`} /> : (
+                <button
+                  key={`${viewYear}-${viewMonth}-${d}`}
+                  type="button"
+                  onClick={() => handleSelect(d)}
+                  className={`dp-day ${isSelected(d) ? "dp-day-selected" : ""} ${isToday(d) ? "dp-day-today" : ""}`}
+                >
+                  {d}
+                </button>
+              )
+            ))}
           </div>
           <button type="button" className="dp-today-btn" onClick={goToday}>
             {lang === "th" ? "วันนี้" : "Today"}

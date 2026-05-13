@@ -61,6 +61,26 @@ function countPax(list: OrderRecord[]) {
   return list.reduce((sum, order) => sum + order.join + order.visitor, 0);
 }
 
+function navIcon(key: MainView) {
+  const common = { viewBox: "0 0 24 24", width: 18, height: 18, fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+  if (key === "overview") {
+    return <svg {...common}><rect x="3" y="3" width="7" height="18" /><rect x="14" y="8" width="7" height="13" /></svg>;
+  }
+  if (key === "orderlist") {
+    return <svg {...common}><rect x="4" y="3" width="16" height="18" rx="2" /><line x1="8" y1="8" x2="16" y2="8" /><line x1="8" y1="12" x2="16" y2="12" /><line x1="8" y1="16" x2="13" y2="16" /></svg>;
+  }
+  if (key === "personnel") {
+    return <svg {...common}><circle cx="9" cy="8" r="3" /><circle cx="17" cy="9" r="2.5" /><path d="M3 19c1.5-3 4-4 6-4s4.5 1 6 4" /><path d="M14 19c.8-1.7 2-2.6 3.5-2.9" /></svg>;
+  }
+  if (key === "transport") {
+    return <svg {...common}><rect x="3" y="6" width="18" height="10" rx="2" /><path d="M7 16v2" /><path d="M17 16v2" /><circle cx="8" cy="18" r="1" /><circle cx="16" cy="18" r="1" /></svg>;
+  }
+  if (key === "staffing") {
+    return <svg {...common}><path d="M4 21v-4a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v4" /><circle cx="12" cy="7" r="4" /></svg>;
+  }
+  return <svg {...common}><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1 1 0 0 0-1.1-.2 1 1 0 0 0-.6.9V20a2 2 0 1 1-4 0v-.2a1 1 0 0 0-.6-.9 1 1 0 0 0-1.1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1 1 0 0 0 .2-1.1 1 1 0 0 0-.9-.6H4a2 2 0 1 1 0-4h.2a1 1 0 0 0 .9-.6 1 1 0 0 0-.2-1.1l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1 1 0 0 0 1.1.2H9a1 1 0 0 0 .6-.9V4a2 2 0 1 1 4 0v.2a1 1 0 0 0 .6.9 1 1 0 0 0 1.1-.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1 1 0 0 0-.2 1.1V9c0 .4.2.7.6.9H20a2 2 0 1 1 0 4h-.2a1 1 0 0 0-.9.6z" /></svg>;
+}
+
 export function OperationsDashboard({ initialData }: { initialData: DashboardSeed }) {
   const { t } = useLang();
   const [orders, setOrders] = useState(initialData.orders);
@@ -691,20 +711,20 @@ export function OperationsDashboard({ initialData }: { initialData: DashboardSee
     <div className="app-shell">
       <aside className="sidebar-nav">
         {[
-          ["overview", t("nav.overview"), "📊"],
-          ["orderlist", t("nav.orderlist"), "📋"],
-          ["personnel", t("nav.personnel"), "👥"],
-          ["transport", t("nav.transport"), "🚌"],
-          ["staffing", t("nav.staffing"), "🧑‍💼"],
-          ["master", t("nav.master"), "⚙️"]
-        ].map(([key, label, icon]) => (
+          ["overview", t("nav.overview")],
+          ["orderlist", t("nav.orderlist")],
+          ["transport", t("nav.transport")],
+          ["staffing", t("nav.staffing")],
+          ["personnel", t("nav.personnel")],
+          ["master", t("nav.master")]
+        ].map(([key, label]) => (
           <button
             className={`sidebar-item ${mainView === key ? "active" : ""}`}
             key={key}
             onClick={() => setMainView(key as MainView)}
             type="button"
           >
-            <span className="sidebar-icon">{icon}</span>
+            <span className="sidebar-icon">{navIcon(key as MainView)}</span>
             <span>{label}</span>
           </button>
         ))}
@@ -723,6 +743,7 @@ export function OperationsDashboard({ initialData }: { initialData: DashboardSee
               <label style={{display:"flex",alignItems:"center",gap:"8px"}}>
                 <span style={{fontSize:"12px",fontWeight:700,color:"#64748b"}}>วันที่</span>
                 <DatePicker
+                  className="overview-date-picker"
                   value={orderDateStart}
                   onChange={(v) => setOrderDateStart(v)}
                   style={{padding:"6px 10px",fontSize:"13px"}}
@@ -1131,6 +1152,7 @@ export function OperationsDashboard({ initialData }: { initialData: DashboardSee
                       <th className="center">Pax</th>
                       <th>ลูกค้า</th>
                       <th>คนขับ</th>
+                      <th>Admin Note</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1139,7 +1161,10 @@ export function OperationsDashboard({ initialData }: { initialData: DashboardSee
                         <td className="slot">{order.time}</td>
                         <td>{order.hotel}</td>
                         <td className="center strong-blue">{order.join + order.visitor}</td>
-                        <td>{order.name}</td>
+                        <td>
+                          {order.name}
+                          {order.adminNote ? <span className="subtle-line">Note: {order.adminNote}</span> : null}
+                        </td>
                         <td>
                           <select
                             value={order.driver}
@@ -1154,6 +1179,19 @@ export function OperationsDashboard({ initialData }: { initialData: DashboardSee
                               </option>
                             ))}
                           </select>
+                        </td>
+                        <td>
+                          <input
+                            className="table-input"
+                            placeholder="Note"
+                            value={order.adminNote ?? ""}
+                            onChange={(event) =>
+                              updateOrder(order.id, (current) => ({
+                                ...current,
+                                adminNote: event.target.value
+                              }))
+                            }
+                          />
                         </td>
                       </tr>
                     ))}
@@ -1402,7 +1440,7 @@ export function OperationsDashboard({ initialData }: { initialData: DashboardSee
                     ))}
                   </select>
                   <select onChange={(event) => setStaffPacket(event.target.value)} value={staffPacket}>
-                    <option value="ALL">ทุก Packet</option>
+                    <option value="ALL">ทุก Package</option>
                     {packetsInDay.map((packet) => (
                       <option key={packet} value={packet}>
                         {packet}

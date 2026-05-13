@@ -802,7 +802,7 @@ button {
 
 .capacity-box span {
   color: #64748b;
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 800;
   text-transform: uppercase;
 }
@@ -920,6 +920,7 @@ button {
 
 .toolbar.warning {
   background: #fff7ed;
+  flex-wrap: nowrap;
 }
 
 .filter-panel label,
@@ -2474,9 +2475,12 @@ button {
 }
 
 .sidebar-item .sidebar-icon {
-  font-size: 18px;
   width: 20px;
+  height: 20px;
   text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .sidebar-section-label {
@@ -2582,6 +2586,11 @@ button {
   box-shadow: 0 12px 40px rgba(15, 23, 42, 0.15);
   padding: 16px;
   min-width: 280px;
+}
+
+.overview-date-picker .date-picker-popover {
+  left: auto;
+  right: 0;
 }
 
 .date-picker-range {
