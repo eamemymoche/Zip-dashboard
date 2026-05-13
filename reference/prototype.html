@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zipline Command Center v21 - Sovereign Clean</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700;800&display=swap');
+        body { font-family: 'Sarabun', sans-serif; background-color: #f8fafc; color: #1e293b; }
+        .glass-card { background: white; border-radius: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border: 1px solid #e2e8f0; }
+        .nav-btn-active { background-color: #0f172a; color: white; border-radius: 0.75rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .sub-nav-active { border-bottom: 3px solid #10b981; color: #065f46; font-weight: 700; }
+        .status-waiting { background-color: #fef3c7; color: #92400e; }
+        .status-boarded { background-color: #d1fae5; color: #065f46; }
+        .status-noshow { background-color: #fee2e2; color: #991b1b; animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
+        .board-col { border: 2px solid #1e293b; background: white; min-height: 500px; display: flex; flex-direction: column; border-radius: 0.5rem; }
+        .board-header { background: #1e293b; color: white; text-align: center; font-weight: 800; padding: 10px; font-size: 1.1rem; }
+        @media print { .no-print { display: none !important; } .print-only { display: block !important; border: 2px solid black !important; } }
+    </style>
+</head>
+<body class="p-2 md:p-4">
+    <div class="max-w-[1800px] mx-auto">
+        <nav class="flex flex-wrap gap-2 mb-6 no-print bg-white p-2 rounded-2xl shadow-sm sticky top-0 z-[100] border border-gray-200">
+            <button onclick="switchView('orderlist')" id="main-btn-orderlist" class="flex-1 min-w-[140px] px-4 py-3 font-bold text-gray-500 nav-btn-active transition-all"><i class="fas fa-file-invoice mr-2"></i>A. Order List</button>
+            <button onclick="switchView('personnel')" id="main-btn-personnel" class="flex-1 min-w-[140px] px-4 py-3 font-bold text-gray-500 transition-all"><i class="fas fa-id-card mr-2"></i>B. บุคลากร</button>
+            <button onclick="switchView('transport')" id="main-btn-transport" class="flex-1 min-w-[140px] px-4 py-3 font-bold text-gray-500 transition-all"><i class="fas fa-bus mr-2"></i>C. งานจัดรถ</button>
+            <button onclick="switchView('staffing')" id="main-btn-staffing" class="flex-1 min-w-[140px] px-4 py-3 font-bold text-gray-500 transition-all"><i class="fas fa-users-cog mr-2"></i>D. งานสตาฟ</button>
+            <button onclick="switchView('master')" id="main-btn-master" class="flex-1 min-w-[140px] px-4 py-3 font-bold text-gray-500 transition-all"><i class="fas fa-chart-pie mr-2"></i>E. Master Ops</button>
+        </nav>
+
+        <section id="view-orderlist" class="block animate-fade-in no-print">
+            <div class="glass-card p-6">
+                <div id="capacity-dashboard" class="grid grid-cols-2 md:grid-cols-6 gap-4 mb-6"></div>
+
+                <div class="flex flex-wrap justify-between items-center mb-6 gap-4 border-b pb-4">
+                    <h2 class="text-2xl font-extrabold text-slate-800">Order List <span class="text-sm font-normal text-slate-400">(History Log)</span></h2>
+                    <div class="flex gap-2">
+                        <button onclick="openModal('add-order-modal')" class="bg-emerald-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-lg"><i class="fas fa-plus mr-2"></i>คีย์ออเดอร์ใหม่</button>
+                        <button onclick="simulateExport('Order_History')" class="bg-slate-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-lg"><i class="fas fa-file-excel mr-2"></i>ส่งออก Excel</button>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                    <div><label class="text-[10px] font-bold text-slate-500 uppercase">วันที่</label><input type="date" id="o-filter-date" onchange="renderOrderList()" class="w-full p-2.5 border rounded-xl text-sm"></div>
+                    <div class="md:col-span-3"><label class="text-[10px] font-bold text-slate-500 uppercase">ค้นหาอัจฉริยะ</label><input type="text" id="o-search" onkeyup="renderOrderList()" placeholder="ชื่อ/Booking/เบอร์/เอเจ้น" class="w-full p-2.5 border rounded-xl text-sm shadow-sm"></div>
+                </div>
+                <div class="overflow-x-auto border rounded-2xl bg-white max-h-[60vh]">
+                    <table class="w-full text-left text-xs">
+                        <thead class="bg-slate-100 text-slate-600 sticky top-0 z-10">
+                            <tr><th class="p-4">#</th><th class="p-4">วันที่</th><th class="p-4">รอบ</th><th class="p-4">Agent</th><th class="p-4">Booking No.</th><th class="p-4">Packet</th><th class="p-4">ลูกค้า</th><th class="p-4 text-center">Pax (เพื่อรับ)</th><th class="p-4 text-center">Join (คนเล่น)</th><th class="p-4">โรงแรม</th></tr>
+                        </thead>
+                        <tbody id="order-list-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <section id="view-transport" class="hidden animate-fade-in no-print">
+            <div class="glass-card p-6">
+                <div class="flex border-b mb-6 overflow-x-auto">
+                    <button onclick="switchSubView('transport', 'assign')" id="sub-btn-transport-assign" class="px-6 py-3 sub-nav-active">1. จัดคนขับ (Assignments)</button>
+                    <button onclick="switchSubView('transport', 'recheck')" id="sub-btn-transport-recheck" class="px-6 py-3 text-slate-400">2. รีเช็คการรับ (Live Feed)</button>
+                    <button onclick="switchSubView('transport', 'sheet')" id="sub-btn-transport-sheet" class="px-6 py-3 text-slate-400">3. ใบงานรายคัน (Job Sheets)</button>
+                </div>
+                
+                <div id="sub-view-transport-assign">
+                    <div class="bg-emerald-50 p-4 rounded-xl mb-4 border flex flex-wrap gap-4 items-end">
+                        <div><label class="text-[10px] font-bold">วันที่</label><input type="date" id="t-assign-date" onchange="renderTransportAssign()" class="p-2 border rounded-xl text-sm"></div>
+                        <div><label class="text-[10px] font-bold">รอบเวลา</label><select id="t-assign-time" onchange="renderTransportAssign()" class="p-2 border rounded-xl text-sm"><option value="ALL">ทุกรอบ</option><option value="07:00">07:00</option><option value="08:00">08:00</option><option value="09:00">09:00</option><option value="11:00">11:00</option><option value="12:00">12:00</option><option value="13:00">13:00</option></select></div>
+                        <button onclick="sortUnassigned()" class="bg-indigo-600 text-white px-4 py-2 rounded-xl font-bold text-xs shadow-md">เรียงลำดับรายการยังไม่จัดรถ</button>
+                    </div>
+                    <div class="overflow-x-auto border rounded-2xl bg-white"><table class="w-full text-left text-[11px]"><thead class="bg-emerald-800 text-white"><tr><th class="p-4">เวลา</th><th class="p-4">โรงแรม (ห้อง)</th><th class="p-4 text-center">Pax (เพื่อรับ)</th><th class="p-4">ลูกค้า / เบอร์โทร</th><th class="p-4">เลือกคนขับ</th><th class="p-4">Admin Note</th></tr></thead><tbody id="transport-assign-body"></tbody></table></div>
+                </div>
+
+                <div id="sub-view-transport-recheck" class="hidden">
+                    <div id="transport-stats-container" class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4"></div>
+                    <div class="bg-slate-50 p-4 rounded-2xl mb-4 border flex flex-wrap gap-4 items-end">
+                        <div><label class="text-[10px] font-bold">วันที่</label><input type="date" id="t-recheck-date" onchange="renderTransportRecheck()" class="p-2 border rounded-xl text-sm"></div>
+                        <div><label class="text-[10px] font-bold">คนขับ</label><select id="t-recheck-driver-filter" onchange="renderTransportRecheck()" class="p-2 border rounded-xl text-sm"><option value="ALL">ทุกคน</option></select></div>
+                    </div>
+                    <div class="overflow-x-auto border rounded-2xl bg-white shadow-sm"><table class="w-full text-left text-[11px]"><thead class="bg-blue-900 text-white"><tr><th class="p-4">รอบ / คนขับ</th><th class="p-4">โรงแรม</th><th class="p-4 text-center">Pax</th><th class="p-4">ลูกค้า</th><th class="p-4 text-center">สถานะ</th><th class="p-4">Action</th></tr></thead><tbody id="transport-recheck-body"></tbody></table></div>
+                </div>
+
+                <div id="sub-view-transport-sheet" class="hidden">
+                    <div id="driver-sheet-selectors" class="flex flex-wrap gap-2 mb-6 bg-slate-50 p-4 rounded-xl border"></div>
+                    <div id="job-sheet-print-container"></div>
+                </div>
+            </div>
+        </section>
+
+        <section id="view-master" class="hidden animate-fade-in no-print">
+            <div class="glass-card p-6">
+                 <div class="flex border-b mb-6 overflow-x-auto">
+                    <button onclick="switchSubView('master', 'summary')" id="sub-btn-master-summary" class="px-6 py-3 sub-nav-active">1. ข้อมูลทั้งหมด (Log)</button>
+                    <button onclick="switchSubView('master', 'pivot')" id="sub-btn-master-pivot" class="px-6 py-3 text-slate-400">2. วิเคราะห์ข้อมูล (Pivot)</button>
+                    <button onclick="switchSubView('master', 'products')" id="sub-btn-master-products" class="px-6 py-3 text-slate-400">3. ตั้งค่าแพ็กเกจ (Product DB)</button>
+                </div>
+                
+                <div id="sub-view-master-summary">
+                    <div class="flex justify-between items-center mb-6"><h3 class="text-2xl font-black text-slate-800">Operational Log</h3><button onclick="simulateExport('Full_Master')" class="bg-black text-white px-6 py-2 rounded-xl text-sm font-bold shadow-lg">Export All</button></div>
+                    <div class="overflow-x-auto border rounded-2xl bg-white max-h-[60vh] shadow-inner"><table class="w-full text-left text-[10px]"><thead class="bg-slate-800 text-white sticky top-0 z-10"><tr><th class="p-3">ID / Booking</th><th class="p-3">วันที่ / รอบ</th><th class="p-3">Packet / Agent</th><th class="p-3">โรงแรม</th><th class="p-3 text-center">Pax</th><th class="p-3 text-center">Join</th><th class="p-3">คนขับ</th><th class="p-3 text-center">Status</th><th class="p-3">สตาฟ</th><th class="p-3">Note</th></tr></thead><tbody id="master-table-body"></tbody></table></div>
+                </div>
+
+                <div id="sub-view-master-pivot" class="hidden">
+                    <div class="bg-slate-50 p-6 rounded-2xl border mb-6 flex flex-wrap gap-4 items-end">
+                        <div><label class="text-[10px] font-bold">Group By</label><select id="pivot-groupby" onchange="renderPivotAnalysis()" class="p-2 border rounded-xl text-sm"><option value="agent">Agency (เอเจ้น)</option><option value="packet">Packet (แพ็กเกจ)</option></select></div>
+                        <button onclick="renderPivotAnalysis()" class="bg-indigo-600 text-white px-6 py-2 rounded-xl text-sm font-bold shadow-md">ประมวลผล</button>
+                    </div>
+                    <div id="pivot-result-area" class="overflow-x-auto border rounded-2xl bg-white shadow-sm"></div>
+                </div>
+
+                <div id="sub-view-master-products" class="hidden">
+                    <div class="flex justify-between items-center mb-6"><h3 class="text-xl font-black">ฐานข้อมูลแพ็กเกจ</h3><button onclick="addPackagePrompt()" class="bg-emerald-600 text-white px-4 py-2 rounded-xl text-xs font-bold">+ เพิ่มแพ็กเกจ</button></div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4" id="packet-list-grid"></div>
+                </div>
+            </div>
+        </section>
+
+        <section id="view-staffing" class="hidden animate-fade-in no-print">
+            <div class="glass-card p-6">
+                <div class="flex border-b mb-6 overflow-x-auto">
+                    <button onclick="switchSubView('staffing', 'setup')" id="sub-btn-staffing-setup" class="px-6 py-3 sub-nav-active">1. จัดไกด์สนาม (Setup)</button>
+                    <button onclick="switchSubView('staffing', 'board')" id="sub-btn-staffing-board" class="px-6 py-3 text-slate-400">2. หน้าบอร์ดสรุปงาน</button>
+                    <button onclick="switchSubView('staffing', 'kpi')" id="sub-btn-staffing-kpi" class="px-6 py-3 text-slate-400">3. สรุปผลงานสตาฟ (KPI)</button>
+                </div>
+                <div id="sub-view-staffing-setup">
+                    <div class="flex flex-wrap gap-4 mb-6 bg-slate-50 p-4 rounded-xl border">
+                        <input type="date" id="s-filter-date" onchange="renderStaffingSetup()" class="p-2 border rounded-xl text-sm">
+                        <select id="s-filter-time" onchange="renderStaffingSetup()" class="p-2 border rounded-xl text-sm"><option value="ALL">ทุกรอบ</option><option value="07:00">07:00</option><option value="08:00">08:00</option><option value="09:00">09:00</option><option value="11:00">11:00</option><option value="12:00">12:00</option><option value="13:00">13:00</option></select>
+                        <select id="s-filter-packet" onchange="renderStaffingSetup()" class="p-2 border rounded-xl text-sm bg-orange-50 border-orange-200"></select>
+                    </div>
+                    <div class="overflow-x-auto border rounded-2xl bg-white"><table class="w-full text-left text-[11px]"><thead class="bg-orange-600 text-white"><tr><th class="p-4">รอบ</th><th class="p-4">Packet / Booking</th><th class="p-4">ลูกค้า</th><th class="p-4 text-center">Join (คนเล่น)</th><th class="p-4">เลือกไกด์ (>= 2 คน)</th><th class="p-4 text-center">Status</th></tr></thead><tbody id="staffing-setup-body"></tbody></table></div>
+                </div>
+                <div id="sub-view-staffing-board" class="hidden">
+                    <div id="staff-board-header" class="bg-slate-900 p-6 rounded-2xl shadow-2xl mb-6 flex justify-between items-center border-b-8 border-orange-500">
+                        <h3 class="text-2xl font-black text-white italic uppercase">SKYLINE STAFF WHITEBOARD</h3>
+                        <input type="date" id="board-date-filter" onchange="renderStaffBoard()" class="p-2 rounded-xl font-bold shadow-inner">
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2" id="staff-board-grid"></div>
+                </div>
+                <div id="sub-view-staffing-kpi" class="hidden">
+                    <div id="kpi-filter-area" class="bg-white p-6 rounded-2xl border mb-6 shadow-sm flex flex-wrap gap-4 items-end"></div>
+                    <div id="kpi-result-area" class="grid grid-cols-1 md:grid-cols-3 gap-6"></div>
+                </div>
+            </div>
+        </section>
+
+        <section id="view-personnel" class="hidden animate-fade-in no-print">
+            <div class="glass-card p-6">
+                <div class="flex justify-between items-center mb-6 border-b pb-4">
+                    <h2 class="text-2xl font-extrabold text-slate-800">ฐานข้อมูลบุคลากร</h2>
+                    <button onclick="openModal('add-employee-modal')" class="bg-indigo-600 text-white px-6 py-2.5 rounded-xl text-sm font-bold shadow-lg">+ เพิ่มพนักงานใหม่</button>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6" id="employee-list-grid"></div>
+            </div>
+        </section>
+
+        <div id="add-order-modal" class="fixed inset-0 bg-black/60 hidden flex items-center justify-center z-[200] no-print p-4">
+            <div class="bg-white w-full max-w-2xl p-8 rounded-3xl shadow-2xl overflow-y-auto max-h-[90vh]">
+                <h3 class="text-2xl font-black mb-6 border-b pb-4">คีย์ข้อมูลออเดอร์ใหม่</h3>
+                <div id="modal-order-fields" class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6"></div>
+                <div class="flex justify-end gap-3"><button onclick="closeModal('add-order-modal')" class="px-6 py-2 text-slate-400 font-bold">ยกเลิก</button><button onclick="saveNewOrder()" class="px-8 py-2 bg-emerald-600 text-white rounded-xl font-bold shadow-lg">บันทึกออเดอร์</button></div>
+            </div>
+        </div>
+
+        <div id="add-employee-modal" class="fixed inset-0 bg-black/60 hidden flex items-center justify-center z-[210] no-print p-4">
+            <div class="bg-white w-full max-w-md p-8 rounded-3xl shadow-2xl">
+                <h3 class="text-xl font-black mb-6">ลงทะเบียนบุคลากรใหม่</h3>
+                <div class="space-y-4 mb-8">
+                    <input type="text" id="emp-id" placeholder="รหัสพนักงาน C001/G001" class="w-full border p-3 rounded-xl">
+                    <input type="text" id="emp-name" placeholder="ชื่อ-นามสกุล" class="w-full border p-3 rounded-xl">
+                    <select id="emp-role" class="w-full border p-3 rounded-xl"><option value="Staff">Staff (ไกด์สนาม)</option><option value="Driver">Driver (พนักงานขับรถ)</option></select>
+                </div>
+                <div class="flex justify-end gap-2"><button onclick="closeModal('add-employee-modal')" class="px-6 py-2 text-slate-400 font-bold">ยกเลิก</button><button onclick="saveNewEmployee()" class="px-8 py-2 bg-indigo-600 text-white rounded-xl font-bold shadow-lg">บันทึกข้อมูล</button></div>
+            </div>
+        </div>
+
+        <div id="message-box" class="fixed bottom-5 right-5 hidden z-[300] p-4 rounded-xl shadow-2xl text-white font-bold animate-bounce"></div>
+    </div>
+
+    <script>
+        let orders = [];
+        let employees = [
+            { id: 'G001', name: 'มานะ ขยันงาน', role: 'Staff' },
+            { id: 'G002', name: 'ปรีชา กล้าหาญ', role: 'Staff' },
+            { id: 'G003', name: 'รัตนา สายสวย', role: 'Staff' },
+            { id: 'C001', name: 'วิชัย รถซิ่ง', role: 'Driver' },
+            { id: 'C002', name: 'นิพนธ์ ปลอดภัย', role: 'Driver' }
+        ];
+        
+        const productPackets = [
+            { name: "Extreme", detail: "Z38 + Luge + Swing + Transport" },
+            { name: "Express", detail: "Z38 + Swing + Transport" },
+            { name: "Exciting", detail: "Z19 + Swing + Luge" },
+            { name: "Gold Zipline", detail: "38 PF" },
+            { name: "Silver Zipline", detail: "16 PF" },
+            { name: "Extra", detail: "Visitor + Luge" },
+            { name: "Fast Track", detail: "Zipline Only" },
+            { name: "Fast Track + Luge", detail: "Zipline + Luge" },
+            { name: "Luge", detail: "Luge Only" },
+            { name: "Visitor", detail: "Entrance + Lunch" },
+            { name: "Inspector", detail: "Site Inspection" }
+        ];
+
+        const timeSlots = ["07:00", "08:00", "09:00", "11:00", "12:00", "13:00"];
+
+        function initSystem() {
+            let currentId = 1;
+            const agents = ["Klook", "Trip.com", "CTrip", "TTD Global", "Direct"];
+            const drs = employees.filter(e => e.role === 'Driver').map(d => d.name);
+
+            // Generating 300 orders for May 11-15, 2026
+            for (let day = 11; day <= 15; day++) {
+                const formattedDate = `2026-05-${String(day).padStart(2, '0')}`;
+                for (let i = 0; i < 60; i++) {
+                    const join = Math.floor(Math.random() * 4) + 1;
+                    const visitor = Math.floor(Math.random() * 2);
+                    orders.push({
+                        id: currentId++, date: formattedDate, time: timeSlots[i % timeSlots.length],
+                        agent: agents[Math.floor(Math.random() * agents.length)], booking: 'BK' + (1000000 + currentId),
+                        packet: productPackets[Math.floor(Math.random() * productPackets.length)].name, name: 'Guest ' + currentId,
+                        phone: '08' + Math.floor(Math.random() * 90000000), hotel: 'Hotel ' + (i % 15 + 1),
+                        room: 100 + i, join: join, visitor: visitor, driver: drs[i % drs.length], 
+                        boarding: i % 15 === 0 ? 'No Show' : (i % 5 === 0 ? 'Waiting' : 'Boarded'), 
+                        assignedStaff: [], adminNote: ''
+                    });
+                }
+            }
+            document.querySelectorAll('input[type="date"]').forEach(el => el.value = "2026-05-12");
+            switchView('orderlist');
+        }
+
+        function switchView(viewName) {
+            document.querySelectorAll('section').forEach(s => s.classList.add('hidden'));
+            const target = document.getElementById('view-' + viewName);
+            if(target) target.classList.remove('hidden');
+            
+            document.querySelectorAll('nav button').forEach(b => b.classList.remove('nav-btn-active', 'text-white'));
+            const btn = document.getElementById('main-btn-' + viewName);
+            if(btn) btn.classList.add('nav-btn-active', 'text-white');
+            
+            if (viewName === 'orderlist') { renderCapacityDashboard(); renderOrderList(); }
+            if (viewName === 'personnel') renderEmployeeGrid();
+            if (viewName === 'transport') renderTransportAssign();
+            if (viewName === 'staffing') renderStaffingSetup();
+            if (viewName === 'master') renderMasterSummary();
+        }
+
+        function switchSubView(parent, sub) {
+            document.querySelectorAll(`[id^="sub-view-${parent}-"]`).forEach(v => v.classList.add('hidden'));
+            const target = document.getElementById(`sub-view-${parent}-${sub}`);
+            if(target) target.classList.remove('hidden');
+            
+            document.querySelectorAll(`[id^="sub-btn-${parent}-"]`).forEach(b => b.classList.remove('sub-nav-active'));
+            const btn = document.getElementById(`sub-btn-${parent}-${sub}`);
+            if(btn) btn.classList.add('sub-nav-active');
+            
+            if (sub === 'recheck') renderTransportRecheck();
+            if (sub === 'board') renderStaffBoard();
+            if (sub === 'kpi') populateKPIFilters();
+            if (sub === 'pivot') renderPivotAnalysis();
+            if (sub === 'products') renderPacketGrid();
+            if (sub === 'sheet') renderDriverSheetSelectors();
+        }
+
+        function renderCapacityDashboard() {
+            const date = document.getElementById('o-filter-date').value;
+            const container = document.getElementById('capacity-dashboard');
+            container.innerHTML = timeSlots.map(slot => {
+                const list = orders.filter(o => o.date === date && o.time === slot && o.boarding !== 'No Show');
+                const totalPax = list.reduce((a, b) => a + (b.join + b.visitor), 0);
+                const totalJoin = list.reduce((a, b) => a + b.join, 0);
+                return `<div class="glass-card p-3 border-b-4 border-slate-200">
+                    <span class="text-[10px] font-black text-slate-500 uppercase">${slot}</span>
+                    <div class="text-[11px] font-bold text-blue-800">Pax (รับ): <span class="text-lg">${totalPax}</span></div>
+                    <div class="text-[11px] font-bold text-emerald-600">Join (เล่น): <span class="text-lg">${totalJoin}</span></div>
+                </div>`;
+            }).join('');
+        }
+
+        function renderOrderList() {
+            const date = document.getElementById('o-filter-date').value;
+            const search = document.getElementById('o-search').value.toLowerCase();
+            const filtered = orders.filter(o => (!date || o.date === date) && (o.name.toLowerCase().includes(search) || o.booking.toLowerCase().includes(search)));
+            document.getElementById('order-list-body').innerHTML = filtered.map(o => `
+                <tr class="border-b hover:bg-slate-50">
+                    <td class="p-4 font-mono font-bold">${o.id}</td><td class="p-4">${o.date}</td><td class="p-4 font-bold text-emerald-600">${o.time}</td>
+                    <td class="p-4">${o.agent}</td><td class="p-4 font-mono text-slate-500">${o.booking}</td><td class="p-4 font-bold text-[10px]">${o.packet}</td>
+                    <td class="p-4 font-bold">${o.name}</td><td class="p-4 text-center font-black text-blue-700">${o.join + o.visitor}</td><td class="p-4 text-center font-black text-emerald-600">${o.join}</td><td class="p-4">${o.hotel}</td>
+                </tr>
+            `).join('');
+            renderCapacityDashboard();
+        }
+
+        function renderTransportAssign() {
+            const date = document.getElementById('t-assign-date').value;
+            const time = document.getElementById('t-assign-time').value;
+            const filtered = orders.filter(o => o.date === date && (time === 'ALL' || o.time === time));
+            const drs = employees.filter(e => e.role === 'Driver');
+            document.getElementById('transport-assign-body').innerHTML = filtered.map(o => `
+                <tr class="border-b hover:bg-emerald-50">
+                    <td class="p-4 font-bold text-emerald-600">${o.time}</td>
+                    <td class="p-4"><b>${o.hotel}</b> (Rm: ${o.room})</td>
+                    <td class="p-4 text-center font-black text-blue-800 text-lg">${o.join + o.visitor}</td>
+                    <td class="p-4"><b>${o.name}</b><br><span class="text-[9px] text-slate-400">${o.phone}</span></td>
+                    <td class="p-4"><select onchange="updateRecord(${o.id}, 'driver', this.value)" class="p-1 border rounded-xl w-full bg-white text-[10px]">
+                        <option value="">-- เลือกคนขับ --</option>
+                        ${drs.map(dr => `<option value="${dr.name}" ${o.driver === dr.name ? 'selected' : ''}>${dr.name}</option>`).join('')}
+                    </select></td>
+                    <td class="p-4"><input type="text" value="${o.adminNote}" onchange="updateRecord(${o.id}, 'adminNote', this.value)" class="p-1 border rounded-xl w-full text-[10px]" placeholder="Note"></td>
+                </tr>
+            `).join('');
+        }
+
+        function renderTransportRecheck() {
+            const date = document.getElementById('t-recheck-date').value;
+            const driverFilter = document.getElementById('t-recheck-driver-filter').value;
+            const dayOrders = orders.filter(o => o.date === date);
+            
+            const drsInDay = [...new Set(dayOrders.filter(x => x.driver).map(x => x.driver))];
+            document.getElementById('t-recheck-driver-filter').innerHTML = '<option value="ALL">ทุกคน</option>' + drsInDay.map(d => `<option value="${d}" ${driverFilter === d ? 'selected' : ''}>${d}</option>`).join('');
+
+            const filtered = dayOrders.filter(o => (driverFilter === 'ALL' || o.driver === driverFilter));
+
+            document.getElementById('transport-stats-container').innerHTML = `
+                <div onclick="applyStatusFilter('Waiting')" class="glass-card p-4 border-l-4 border-amber-500 cursor-pointer hover:bg-amber-50"><p class="text-[10px] font-bold text-slate-400 uppercase">Waiting</p><h4 class="text-2xl font-black text-amber-600">${dayOrders.filter(o => o.boarding === 'Waiting').length}</h4></div>
+                <div onclick="applyStatusFilter('Boarded')" class="glass-card p-4 border-l-4 border-emerald-500 cursor-pointer hover:bg-emerald-50"><p class="text-[10px] font-bold text-slate-400 uppercase">Boarded</p><h4 class="text-2xl font-black text-emerald-600">${dayOrders.filter(o => o.boarding === 'Boarded').length}</h4></div>
+                <div onclick="applyStatusFilter('No Show')" class="glass-card p-4 border-l-4 border-red-500 cursor-pointer hover:bg-red-50"><p class="text-[10px] font-bold text-slate-400 uppercase">No Show</p><h4 class="text-2xl font-black text-red-600">${dayOrders.filter(o => o.boarding === 'No Show').length}</h4></div>
+                <div onclick="applyStatusFilter('ALL')" class="glass-card p-4 border-l-4 border-slate-900 bg-slate-900 text-white cursor-pointer"><p class="text-[10px] font-bold text-slate-300 uppercase">Pax Today</p><h4 class="text-2xl font-black">${dayOrders.filter(o => o.boarding !== 'No Show').reduce((a,b)=>a+(b.join+b.visitor),0)}</h4></div>
+            `;
+
+            updateRecheckTable(filtered);
+        }
+
+        function updateRecheckTable(list) {
+            document.getElementById('transport-recheck-body').innerHTML = list.map(o => `
+                <tr class="border-b hover:bg-slate-50">
+                    <td class="p-4"><b>Shift ${o.time}</b><br><span class="text-blue-600 font-bold italic">${o.driver || '--'}</span></td>
+                    <td class="p-4"><b>${o.hotel}</b></td><td class="p-4 text-center font-bold text-blue-700">${o.join + o.visitor}</td>
+                    <td class="p-4"><b>${o.name}</b><br><span class="text-[9px] text-slate-400">${o.phone}</span></td>
+                    <td class="p-4 text-center"><button onclick="cycleBoarding(${o.id})" class="px-4 py-2 rounded-full text-[10px] font-black shadow-sm ${o.boarding === 'Boarded' ? 'status-boarded' : (o.boarding === 'No Show' ? 'status-noshow' : 'status-waiting')}">${o.boarding}</button></td>
+                    <td class="p-4"><button onclick="handleNoShowMove(${o.id})" class="bg-red-700 text-white px-3 py-1.5 rounded-xl text-[9px] font-bold shadow-md">ย้ายรอบรับใหม่</button></td>
+                </tr>
+            `).join('');
+        }
+
+        function applyStatusFilter(status) {
+            const date = document.getElementById('t-recheck-date').value;
+            const driver = document.getElementById('t-recheck-driver-filter').value;
+            const filtered = orders.filter(o => o.date === date && (driver === 'ALL' || o.driver === driver) && (status === 'ALL' || o.boarding === status));
+            updateRecheckTable(filtered);
+        }
+
+        function renderStaffingSetup() {
+            const date = document.getElementById('s-filter-date').value;
+            const round = document.getElementById('s-filter-time').value;
+            const pFilter = document.getElementById('s-filter-packet').value;
+            const dayOrders = orders.filter(o => o.date === date);
+            
+            const packetsInDay = [...new Set(dayOrders.map(x => x.packet))];
+            const filterEl = document.getElementById('s-filter-packet');
+            filterEl.innerHTML = '<option value="ALL">ทุก Packet</option>' + packetsInDay.map(p => `<option value="${p}" ${pFilter === p ? 'selected' : ''}>${p}</option>`).join('');
+
+            const filtered = dayOrders.filter(o => (round === 'ALL' || o.time === round) && (pFilter === 'ALL' || o.packet === pFilter));
+            const staffs = employees.filter(e => e.role === 'Staff');
+
+            document.getElementById('staffing-setup-body').innerHTML = filtered.map(o => `
+                <tr class="border-b hover:bg-orange-50 ${o.boarding === 'No Show' ? 'opacity-50 grayscale' : ''}">
+                    <td class="p-4 font-bold text-orange-600">${o.time}</td>
+                    <td class="p-4"><b>${o.packet}</b><br><span class="text-[9px] text-slate-400">${o.booking}</span></td>
+                    <td class="p-4"><b>${o.name}</b></td><td class="p-4 text-center font-black text-emerald-600 text-lg">${o.join}</td>
+                    <td class="p-4"><div class="grid grid-cols-2 gap-1">${staffs.map(e => `<label class="text-[9px] bg-white border p-1 rounded-xl flex items-center gap-1 cursor-pointer"><input type="checkbox" onchange="toggleStaffAssignment(${o.id}, '${e.name}')" ${o.assignedStaff.includes(e.name) ? 'checked' : ''} ${o.boarding === 'No Show' ? 'disabled' : ''}> ${e.name.split(' ')[0]}</label>`).join('')}</div></td>
+                    <td class="p-4 text-center">
+                        <span class="px-2 py-1 rounded-xl text-[10px] font-bold ${o.assignedStaff.length >= 2 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700 animate-pulse'}">
+                            ${o.assignedStaff.length >= 2 ? 'READY' : (o.assignedStaff.length === 1 ? 'NEED +1' : 'NEED 2 STAFF')}
+                        </span>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function renderStaffBoard() {
+            const date = document.getElementById('board-date-filter').value;
+            const grid = document.getElementById('staff-board-grid');
+            grid.innerHTML = '';
+            timeSlots.forEach(slot => {
+                const list = orders.filter(o => o.time === slot && o.date === date);
+                let html = `<div class="board-col shadow-lg"><div class="board-header">${slot}</div><div class="p-2 space-y-2 flex-grow bg-slate-50">`;
+                list.forEach(o => {
+                    const isNoShow = o.boarding === 'No Show';
+                    html += `<div class="p-2 border-2 ${isNoShow ? 'border-red-500 bg-red-50' : (o.assignedStaff.length < 2 ? 'border-amber-400 bg-amber-50' : 'border-slate-200 bg-white')} rounded-lg shadow-sm">
+                        <div class="flex justify-between font-black text-[11px] ${isNoShow ? 'text-red-600' : 'text-blue-900'}">
+                            <span>${o.name.split(' ').pop()} (${o.packet})</span><span>${o.join} J</span>
+                        </div>
+                        ${isNoShow ? '<div class="text-[10px] font-black text-red-700 mt-1 text-center italic">--- NO SHOW ---</div>' : 
+                        `<div class="bg-yellow-300 p-1 mt-1 rounded text-[11px] font-black text-center border-b border-black">${o.assignedStaff.join(' / ') || '-- รอจัด --'}</div>`}
+                    </div>`;
+                });
+                html += `</div><div class="p-2 bg-slate-800 text-white text-center font-bold text-xs uppercase">Total Join: ${list.filter(o => o.boarding !== 'No Show').reduce((a,b)=>a+b.join,0)}</div></div>`;
+                grid.innerHTML += html;
+            });
+        }
+
+        function renderMasterSummary() {
+            document.getElementById('master-table-body').innerHTML = orders.slice(0, 100).map(o => `
+                <tr class="border-b hover:bg-slate-50">
+                    <td class="p-3 font-mono"><b>${o.id}</b><br><span class="text-blue-600 font-bold text-[9px]">${o.booking}</span></td>
+                    <td class="p-3"><b>${o.date}</b><br>${o.time}</td>
+                    <td class="p-3"><b>${o.packet}</b><br><span class="text-slate-400 text-[9px]">${o.agent}</span></td>
+                    <td class="p-3"><b>${o.hotel}</b></td><td class="p-3 text-center font-bold text-blue-800">${o.join + o.visitor}</td><td class="p-3 text-center font-bold text-emerald-600">${o.join}</td>
+                    <td class="p-3 font-bold">${o.driver || '-'}</td>
+                    <td class="p-3 text-center"><span class="px-2 py-0.5 rounded-full text-[9px] font-black ${o.boarding === 'Boarded' ? 'status-boarded' : (o.boarding === 'No Show' ? 'status-noshow' : 'status-waiting')}">${o.boarding}</span></td>
+                    <td class="p-3 text-orange-600 font-bold text-[9px]">${o.assignedStaff.join(', ') || '-'}</td>
+                    <td class="p-3 italic text-red-500 font-bold text-[9px]">${o.adminNote}</td>
+                </tr>
+            `).join('');
+        }
+
+        function renderPivotAnalysis() {
+            const groupBy = document.getElementById('pivot-groupby').value;
+            const area = document.getElementById('pivot-result-area');
+            const pivotData = {};
+            orders.filter(o => o.boarding !== 'No Show').forEach(o => {
+                const key = o[groupBy];
+                if (!pivotData[key]) pivotData[key] = { bks: 0, pax: 0, join: 0 };
+                pivotData[key].bks++; pivotData[key].pax += (o.join + o.visitor); pivotData[key].join += o.join;
+            });
+            area.innerHTML = `<table class="w-full text-left text-xs"><thead class="bg-slate-900 text-white"><tr><th class="p-4">${groupBy.toUpperCase()}</th><th class="p-4 text-center">Bookings</th><th class="p-4 text-center">Total Pax</th><th class="p-4 text-center">Total Join</th></tr></thead><tbody>${Object.entries(pivotData).map(([k,v])=>`<tr class="border-b"><td class="p-4 font-bold">${k}</td><td class="p-4 text-center">${v.bks}</td><td class="p-4 text-center font-black text-blue-700">${v.pax}</td><td class="p-4 text-center font-black text-emerald-600">${v.join}</td></tr>`).join('')}</tbody></table>`;
+        }
+
+        function populateKPIFilters() { 
+            document.getElementById('kpi-filter-area').innerHTML = `
+                <div><label class="text-[10px] font-bold">พนักงาน</label><select id="kpi-staff-select" class="p-2 border rounded-xl text-sm min-w-[150px]">${employees.filter(e => e.role === 'Staff').map(e => `<label><option value="${e.name}">${e.name}</option></label>`).join('')}</select></div>
+                <div><label class="text-[10px] font-bold">จากวันที่</label><input type="date" id="kpi-start-date" value="2026-05-11" class="p-2 border rounded-xl text-sm"></div>
+                <div><label class="text-[10px] font-bold">ถึงวันที่</label><input type="date" id="kpi-end-date" value="2026-05-15" class="p-2 border rounded-xl text-sm"></div>
+                <button onclick="renderStaffKPI()" class="bg-indigo-600 text-white px-6 py-2 rounded-xl font-bold shadow-md">ประมวลผล</button>`;
+            renderStaffKPI();
+        }
+
+        function renderStaffKPI() {
+            const name = document.getElementById('kpi-staff-select').value;
+            const start = new Date(document.getElementById('kpi-start-date').value);
+            const end = new Date(document.getElementById('kpi-end-date').value);
+            const work = orders.filter(o => o.assignedStaff.includes(name) && new Date(o.date) >= start && new Date(o.date) <= end && o.boarding === 'Boarded');
+            document.getElementById('kpi-result-area').innerHTML = `
+                <div class="glass-card p-6 border-l-8 border-indigo-600"><div>Trips Completed</div><div class="text-4xl font-black">${work.length}</div></div>
+                <div class="glass-card p-6 border-l-8 border-emerald-600"><div>Total Join Handled</div><div class="text-4xl font-black">${work.reduce((a,b)=>a+b.join,0)}</div></div>`;
+        }
+
+        function renderDriverSheetSelectors() {
+            const date = document.getElementById('t-assign-date').value;
+            const activeDrivers = [...new Set(orders.filter(o => o.date === date && o.driver).map(o => o.driver))];
+            const container = document.getElementById('driver-sheet-selectors');
+            if(activeDrivers.length === 0) { container.innerHTML = '<span class="text-slate-400 italic">ไม่มีงานในวันที่เลือก</span>'; return; }
+            container.innerHTML = activeDrivers.map(dr => `<div class="bg-white border p-3 rounded-2xl shadow-sm min-w-[200px]"><div class="font-black text-blue-900">${dr}</div><div class="flex flex-wrap gap-1 mt-2">${timeSlots.map(slot => orders.some(o => o.date === date && o.driver === dr && o.time === slot) ? `<button onclick="viewJobSheet('${dr}', '${slot}')" class="bg-indigo-600 text-white px-2 py-1 rounded text-[10px] font-bold shadow-sm">รอบ ${slot}</button>` : '').join('')}</div></div>`).join('');
+        }
+
+        function viewJobSheet(dr, slot) {
+            const date = document.getElementById('t-assign-date').value;
+            const list = orders.filter(o => o.driver === dr && o.date === date && o.time === slot);
+            const emp = employees.find(e => e.name === dr);
+            document.getElementById('job-sheet-print-container').innerHTML = `
+                <div class="bg-white border-4 border-black p-8 text-left shadow-2xl mx-auto w-full no-print rounded-none mt-6">
+                    <div class="flex justify-between items-start mb-6 border-b-4 border-black pb-4">
+                        <div><h1 class="text-3xl font-black italic uppercase">SKYLINE JOB ORDER</h1><p class="text-lg font-bold">DRIVER: ${dr} (${emp?.id || 'Ext'}) | SHIFT: <span class="text-red-600">${slot}</span></p></div>
+                        <div class="text-right font-bold"><p>DATE: ${date}</p><button onclick="window.print()" class="bg-black text-white px-6 py-2 rounded-xl text-sm mt-3 shadow-lg">Print A4</button></div>
+                    </div>
+                    <table class="w-full text-[10px] border-collapse border-2 border-black">
+                        <thead><tr class="bg-slate-200"><th class="border border-black p-2">Packet</th><th class="border border-black p-2">Agent</th><th class="border border-black p-2">Booking</th><th class="border border-black p-2">Hotel (Room)</th><th class="border border-black p-2">Pax</th><th class="border border-black p-2">Name</th><th class="border border-black p-2">Phone</th><th class="border border-black p-2 w-16">Balance</th><th class="border border-black p-2 w-20">Remark</th></tr></thead>
+                        <tbody>${list.map(o => `<tr><td class="border border-black p-2 font-bold">${o.packet}</td><td class="border border-black p-2">${o.agent}</td><td class="border border-black p-2 font-mono">${o.booking}</td><td class="border border-black p-2"><b>${o.hotel}</b> (Rm:${o.room})</td><td class="border border-black p-2 text-center font-black text-base">${o.join+o.visitor}</td><td class="border border-black p-2 font-bold">${o.name}</td><td class="border border-black p-2">${o.phone}</td><td class="border border-black p-2"></td><td class="border border-black p-2"></td></tr>`).join('')}</tbody>
+                    </table>
+                </div>`;
+        }
+
+        function openModal(id) {
+            const modal = document.getElementById(id);
+            if(modal) modal.classList.remove('hidden');
+            if (id === 'add-order-modal') {
+                document.getElementById('modal-order-fields').innerHTML = `
+                    <div><label class="text-[10px] font-bold">วันที่</label><input type="date" id="new-date" value="2026-05-12" class="w-full border p-2 rounded-xl"></div>
+                    <div><label class="text-[10px] font-bold">รอบ</label><select id="new-time" class="w-full border p-2 rounded-xl">${timeSlots.map(t => `<option>${t}</option>`).join('')}</select></div>
+                    <div><label class="text-[10px] font-bold">Agent</label><input type="text" id="new-agent" class="w-full border p-2 rounded-xl"></div>
+                    <div><label class="text-[10px] font-bold">Booking No.</label><input type="text" id="new-booking" class="w-full border p-2 rounded-xl"></div>
+                    <div><label class="text-[10px] font-bold">Packet</label><select id="new-packet" class="w-full border p-2 rounded-xl">${productPackets.map(p => `<option>${p.name}</option>`).join('')}</select></div>
+                    <div><label class="text-[10px] font-bold">ชื่อลูกค้า</label><input type="text" id="new-name" class="w-full border p-2 rounded-xl"></div>
+                    <div><label class="text-[10px] font-bold">เบอร์โทร</label><input type="text" id="new-phone" class="w-full border p-2 rounded-xl"></div>
+                    <div><label class="text-[10px] font-bold">โรงแรม / ห้อง</label><div class="flex gap-1"><input type="text" id="new-hotel" class="flex-grow border p-2 rounded-xl"><input type="text" id="new-room" class="w-16 border p-2 rounded-xl"></div></div>
+                    <div><label class="text-[10px] font-bold">Join (คนเล่น)</label><input type="number" id="new-join" value="1" class="w-full border p-2 rounded-xl"></div>
+                    <div><label class="text-[10px] font-bold">Visitor (คนตาม)</label><input type="number" id="new-visitor" value="0" class="w-full border p-2 rounded-xl"></div>`;
+            }
+        }
+        function closeModal(id) { const m = document.getElementById(id); if(m) m.classList.add('hidden'); }
+        
+        function showMessage(m, c) { 
+            const el = document.getElementById('message-box'); 
+            el.innerText = m; el.className = `fixed bottom-5 right-5 z-[300] p-4 rounded-xl shadow-2xl text-white font-bold animate-bounce ${c}`; 
+            el.classList.remove('hidden'); 
+            setTimeout(() => el.classList.add('hidden'), 3000); 
+        }
+
+        function saveNewOrder() {
+            const newOrder = { 
+                id: orders.length + 1, 
+                date: document.getElementById('new-date').value, 
+                time: document.getElementById('new-time').value, 
+                agent: document.getElementById('new-agent').value || 'Direct', 
+                booking: document.getElementById('new-booking').value || 'BK'+Date.now(), 
+                packet: document.getElementById('new-packet').value, 
+                name: document.getElementById('new-name').value || 'Guest', 
+                phone: document.getElementById('new-phone').value || '-', 
+                hotel: document.getElementById('new-hotel').value || 'Hotel', 
+                room: document.getElementById('new-room').value || '-', 
+                join: parseInt(document.getElementById('new-join').value) || 1, 
+                visitor: parseInt(document.getElementById('new-visitor').value) || 0, 
+                driver: '', boarding: 'Waiting', assignedStaff: [], adminNote: '' 
+            };
+            orders.unshift(newOrder); closeModal('add-order-modal'); renderOrderList(); showMessage("บันทึกสำเร็จ", "bg-emerald-600");
+        }
+
+        function saveNewEmployee() {
+            const id = document.getElementById('emp-id').value;
+            const name = document.getElementById('emp-name').value;
+            const role = document.getElementById('emp-role').value;
+            if(id && name) { employees.push({id, name, role}); closeModal('add-employee-modal'); renderEmployeeGrid(); showMessage("เพิ่มพนักงานสำเร็จ", "bg-indigo-600"); }
+        }
+
+        function updateRecord(id, field, val) { const o = orders.find(x => x.id === id); if(o) o[field] = val; }
+        function cycleBoarding(id) { const o = orders.find(x => x.id === id); const states = ['Waiting', 'Boarded', 'No Show']; o.boarding = states[(states.indexOf(o.boarding) + 1) % 3]; renderTransportRecheck(); }
+        function handleNoShowMove(id) { const o = orders.find(x => x.id === id); const cur = timeSlots.indexOf(o.time); if (cur < timeSlots.length-1) { o.time = timeSlots[cur+1]; o.boarding = 'Waiting'; o.driver = ''; o.adminNote = 'No Show รอบก่อน'; renderTransportRecheck(); showMessage("ย้ายรอบสำเร็จ", "bg-red-600"); } }
+        function toggleStaffAssignment(id, name) { const o = orders.find(x => x.id === id); if(o.assignedStaff.includes(name)) o.assignedStaff = o.assignedStaff.filter(s => s !== name); else o.assignedStaff.push(name); renderStaffingSetup(); }
+        function sortUnassigned() { orders.sort((a,b) => (a.driver === '' ? -1 : 1)); renderTransportAssign(); }
+        function renderEmployeeGrid() { document.getElementById('employee-list-grid').innerHTML = employees.map(e => `<div class="glass-card p-5 border-l-8 ${e.role === 'Driver' ? 'border-blue-600' : 'border-emerald-500'}"><p class="text-[10px] font-bold text-slate-400">${e.id}</p><h4 class="font-black text-slate-800 text-lg">${e.name}</h4><span class="px-2 py-0.5 bg-slate-100 rounded-full text-[9px] font-bold">${e.role}</span></div>`).join(''); }
+        function renderPacketGrid() { document.getElementById('packet-list-grid').innerHTML = productPackets.map(p => `<div class="bg-white border p-4 rounded-2xl"><b>${p.name}</b><p class="text-[10px] text-slate-400">${p.detail}</p></div>`).join(''); }
+        function simulateExport(n) { showMessage(`💾 กำลังเตรียมไฟล์ ${n}... สำเร็จ!`, "bg-slate-800"); }
+
+        window.onload = initSystem;
+    </script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+{
+  "name": "zipline-command-center",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Production build scaffold for Zipline Command Center.",
+  "scripts": {
+    "dev": "echo \"Scaffold only: create apps/web and apps/api before running dev\"",
+    "build": "echo \"Scaffold only: create apps/web and apps/api before running build\"",
+    "test": "echo \"Scaffold only: add tests after implementation\""
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ]
+}
+

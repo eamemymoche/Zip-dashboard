@@ -1,0 +1,1516 @@
+ได้ครับ ด้านล่างคือ `SKILL.md` ระดับ production สำหรับโปรเจกต์นี้ โดยออกแบบให้ ChatGPT/ทีมใช้เป็น “คู่มือทำงานซ้ำได้” สำหรับแปลง prototype เดิมที่เป็น HTML/JS mock data ไปเป็นระบบจริงด้วย Next.js + backend ที่รองรับข้อมูลเยอะและ workflow ครบทีม
+
+อ้างอิงจากโค้ดเดิม: โปรเจกต์เป็น dashboard สำหรับ Order List, Personnel, Transport, Staffing, Master Ops, Pivot/KPI, Job Sheet และตอนนี้ข้อมูลถูก mock/generated ใน browser ผ่าน `orders`, `employees`, `productPackets`, และ `initSystem()` ยังไม่มี backend/database จริง 
+
+````md
+---
+name: zipline-ops-platform
+description: production workflow for transforming a zipline command center prototype into a scalable operations platform using next.js, high-performance backend architecture, database design, qa, security, devops, ux/ui, and cross-functional delivery practices. use this skill when planning, designing, implementing, reviewing, or scaling an operations dashboard for bookings, transport assignments, staffing, personnel, job sheets, kpi reporting, pivot analytics, exports, and real-time operational workflows.
+---
+
+# Zipline Ops Platform
+
+## Purpose
+
+Use this skill to help build, review, or improve a production-grade operations platform based on the Zipline Command Center prototype.
+
+The original prototype is a single-page HTML/JavaScript dashboard with in-memory mock data for:
+
+- Order List / booking history
+- Personnel database
+- Transport assignment
+- Pickup recheck / live feed
+- Driver job sheets
+- Staffing assignment
+- Staff board
+- Staff KPI
+- Master operations log
+- Pivot analysis
+- Product/package database
+- Excel export simulation
+
+The production version must replace mock browser data with real backend services, persistent database storage, authentication, authorization, auditability, observability, automated testing, deployment pipelines, and scalable data workflows.
+
+## Core Product Goal
+
+Build a fast, beautiful, reliable internal operations platform for a zipline/tour activity business.
+
+The platform must help operations teams:
+
+1. Create and manage bookings.
+2. Assign drivers to pickup jobs.
+3. Track pickup status in near real time.
+4. Move No Show customers to later rounds.
+5. Assign field staff/guides to active guests.
+6. Generate printable job sheets.
+7. Track staff workload and KPIs.
+8. Analyze bookings by agent, package, date, round, pax, join count, driver, and staff.
+9. Export operational reports.
+10. Maintain personnel and product/package master data.
+
+## Recommended Tech Stack
+
+### Frontend
+
+Use:
+
+- Next.js App Router
+- TypeScript
+- React Server Components where appropriate
+- Tailwind CSS
+- shadcn/ui
+- TanStack Query for client-side server state when needed
+- TanStack Table for large tables
+- React Hook Form + Zod for forms
+- Recharts or Tremor for charts
+- date-fns or Day.js for date handling
+- Playwright for E2E tests
+
+Prioritize:
+
+- Fast page loads
+- Clean responsive UI
+- Keyboard-friendly admin workflows
+- Clear empty/error/loading states
+- Printable A4 job sheets
+- Virtualized tables for large datasets
+
+Use virtualization for large lists with:
+
+- `@tanstack/react-virtual`
+- server-side pagination
+- cursor pagination for large operational logs
+
+### Backend
+
+Prefer one of these production backend options.
+
+#### Recommended default: NestJS + PostgreSQL
+
+Use when the project is expected to grow into a serious multi-role operations system.
+
+Use:
+
+- NestJS
+- PostgreSQL
+- Prisma ORM or Drizzle ORM
+- Redis for caching, queues, rate limiting, and realtime coordination
+- BullMQ for background jobs
+- WebSocket gateway or SSE for live operational updates
+- OpenAPI/Swagger for API documentation
+
+Why:
+
+- Strong modular architecture
+- Clean separation of domain modules
+- Good for team-based backend development
+- Scales better than ad hoc API routes
+- Easier to enforce validation, auth, audit logs, and tests
+
+#### Faster MVP option: Next.js full-stack + PostgreSQL
+
+Use when speed matters more than long-term backend separation.
+
+Use:
+
+- Next.js Server Actions or Route Handlers
+- PostgreSQL
+- Prisma or Drizzle
+- Redis only when needed
+- NextAuth/Auth.js or Clerk
+
+Avoid this option if backend complexity grows beyond simple CRUD and reporting.
+
+#### High-scale option: Next.js + Go backend + PostgreSQL
+
+Use only when there are very high throughput requirements, strict performance needs, or heavy concurrent realtime workloads.
+
+Use:
+
+- Next.js frontend
+- Go backend with Fiber, Gin, or Chi
+- PostgreSQL
+- Redis
+- NATS or Kafka if event volume becomes large
+
+Do not choose Go just because it is fast. Choose it only when the team can maintain it.
+
+## Recommended Production Architecture
+
+Use this architecture unless the user requests otherwise:
+
+```text
+Next.js Frontend
+  |
+  | HTTPS / API
+  v
+Backend API: NestJS
+  |
+  | ORM
+  v
+PostgreSQL
+  |
+  +-- Redis cache / queues
+  +-- Object storage for exports and reports
+  +-- Observability stack
+````
+
+Recommended deployment:
+
+```text
+Frontend: Vercel, Cloudflare Pages, or containerized Next.js
+Backend: Fly.io, Render, Railway, ECS, GKE, or Kubernetes
+Database: Managed PostgreSQL
+Cache/Queue: Managed Redis
+Storage: S3-compatible object storage
+Monitoring: Sentry + OpenTelemetry + Grafana/Datadog
+CI/CD: GitHub Actions
+```
+
+## Domain Modules
+
+Structure the system around domain modules, not pages.
+
+### Booking / Order Module
+
+Responsibilities:
+
+* Create booking
+* Edit booking
+* Cancel booking
+* Search bookings
+* Filter by date, round, agent, hotel, package, booking number, customer name, phone
+* Track pax and join counts
+* Maintain booking lifecycle status
+
+Core statuses:
+
+* `WAITING`
+* `BOARDED`
+* `NO_SHOW`
+* `CANCELLED`
+* `RESCHEDULED`
+
+Important fields:
+
+* booking number
+* date
+* time slot
+* agent
+* package
+* customer name
+* phone
+* hotel
+* room
+* join count
+* visitor count
+* total pickup pax
+* admin note
+* source channel
+* created by
+* updated by
+
+### Transport Module
+
+Responsibilities:
+
+* Assign drivers
+* View unassigned pickup jobs
+* Filter by date and round
+* Recheck pickup status
+* Move No Show bookings to a later time slot
+* Generate driver job sheets
+* Track driver workload
+* Print/export pickup job sheets
+
+Rules:
+
+* One booking may have one active driver assignment per pickup round.
+* Reassignments must be auditable.
+* No Show moves must record the previous round and reason.
+* Driver job sheets must be printable and exportable.
+
+### Staffing Module
+
+Responsibilities:
+
+* Assign field staff/guides
+* Ensure minimum staff count per booking or package
+* Display readiness status
+* Show whiteboard-style staff board
+* Calculate staff workload and KPI
+
+Rules:
+
+* Default minimum staff per active booking: 2.
+* No Show or Cancelled bookings must not require staff assignment.
+* Staff assignment changes must be auditable.
+* KPI must exclude No Show and Cancelled bookings unless explicitly requested.
+
+### Personnel Module
+
+Responsibilities:
+
+* Manage employees
+* Define roles
+* Track active/inactive status
+* Support staff and driver role assignment
+* Prevent deleting employees used in historical records
+
+Roles:
+
+* Admin
+* Operations Manager
+* Transport Coordinator
+* Staffing Coordinator
+* Driver
+* Field Staff / Guide
+* Read-only Viewer
+
+### Product / Package Module
+
+Responsibilities:
+
+* Maintain package database
+* Define included activities
+* Define default staffing requirements
+* Define whether package requires transport
+* Define visibility and active/inactive state
+
+Example packages:
+
+* Extreme
+* Express
+* Exciting
+* Gold Zipline
+* Silver Zipline
+* Extra
+* Fast Track
+* Fast Track + Luge
+* Luge
+* Visitor
+* Inspector
+
+### Reporting / Analytics Module
+
+Responsibilities:
+
+* Master operations log
+* Pivot analysis by agent
+* Pivot analysis by package
+* Staff KPI
+* Driver workload
+* Daily capacity by round
+* Export CSV/XLSX/PDF
+* Scheduled report generation if requested
+
+Rules:
+
+* Large reports must run as background jobs.
+* Reports must be filtered server-side.
+* Exports must be permission-controlled.
+* Generated files should expire after a configured retention period.
+
+## Data Model
+
+Design database schema around these entities.
+
+### Core Tables
+
+Use plural snake_case table names unless project convention differs.
+
+```text
+users
+employees
+roles
+user_roles
+bookings
+booking_status_history
+packages
+agents
+hotels
+time_slots
+transport_assignments
+pickup_status_events
+staff_assignments
+job_sheets
+export_jobs
+audit_logs
+```
+
+### Suggested Relationships
+
+```text
+bookings.agent_id -> agents.id
+bookings.package_id -> packages.id
+bookings.hotel_id -> hotels.id
+bookings.time_slot_id -> time_slots.id
+
+transport_assignments.booking_id -> bookings.id
+transport_assignments.driver_employee_id -> employees.id
+
+staff_assignments.booking_id -> bookings.id
+staff_assignments.staff_employee_id -> employees.id
+
+pickup_status_events.booking_id -> bookings.id
+pickup_status_events.changed_by_user_id -> users.id
+
+audit_logs.actor_user_id -> users.id
+```
+
+### Performance Indexes
+
+Add indexes early for:
+
+```sql
+bookings(date, time_slot_id)
+bookings(date, status)
+bookings(booking_no)
+bookings(customer_name)
+bookings(phone)
+bookings(agent_id, date)
+bookings(package_id, date)
+transport_assignments(driver_employee_id, assigned_date)
+staff_assignments(staff_employee_id)
+pickup_status_events(booking_id, created_at)
+audit_logs(entity_type, entity_id, created_at)
+```
+
+Use full-text search or trigram search for:
+
+* customer name
+* booking number
+* phone
+* hotel name
+* agent name
+
+For PostgreSQL, consider:
+
+* `pg_trgm`
+* GIN indexes
+* materialized views for heavy analytics
+* partitioning by booking date if volume becomes very large
+
+## API Design
+
+Use REST by default unless the project requires GraphQL.
+
+### Booking APIs
+
+```text
+GET    /bookings
+POST   /bookings
+GET    /bookings/:id
+PATCH  /bookings/:id
+POST   /bookings/:id/cancel
+POST   /bookings/:id/reschedule
+GET    /bookings/capacity
+```
+
+### Transport APIs
+
+```text
+GET    /transport/assignments
+POST   /transport/assignments
+PATCH  /transport/assignments/:id
+GET    /transport/recheck
+POST   /transport/bookings/:id/boarding-status
+POST   /transport/bookings/:id/move-no-show
+GET    /transport/job-sheets
+POST   /transport/job-sheets/export
+```
+
+### Staffing APIs
+
+```text
+GET    /staffing/assignments
+POST   /staffing/assignments
+DELETE /staffing/assignments/:id
+GET    /staffing/board
+GET    /staffing/kpi
+```
+
+### Master / Reporting APIs
+
+```text
+GET    /reports/master-log
+GET    /reports/pivot
+GET    /reports/staff-kpi
+POST   /exports
+GET    /exports/:id
+```
+
+### Personnel APIs
+
+```text
+GET    /employees
+POST   /employees
+PATCH  /employees/:id
+POST   /employees/:id/deactivate
+```
+
+### Package APIs
+
+```text
+GET    /packages
+POST   /packages
+PATCH  /packages/:id
+POST   /packages/:id/deactivate
+```
+
+## Realtime Requirements
+
+Use realtime updates for:
+
+* pickup status changes
+* driver assignment changes
+* staffing readiness changes
+* No Show moves
+* staff board updates
+
+Preferred implementation:
+
+* Use WebSocket Gateway in NestJS for live dashboards.
+* Use Redis Pub/Sub if running multiple backend instances.
+* Use SSE for simpler one-way live updates.
+
+Do not rely on polling for critical operations if multiple users work at the same time.
+
+## Frontend Page Structure
+
+Use this route structure for Next.js App Router:
+
+```text
+app/
+  dashboard/
+    page.tsx
+  orders/
+    page.tsx
+    new/page.tsx
+    [id]/page.tsx
+  transport/
+    assignments/page.tsx
+    recheck/page.tsx
+    job-sheets/page.tsx
+  staffing/
+    setup/page.tsx
+    board/page.tsx
+    kpi/page.tsx
+  personnel/
+    page.tsx
+  master/
+    log/page.tsx
+    pivot/page.tsx
+    products/page.tsx
+  reports/
+    page.tsx
+  settings/
+    page.tsx
+```
+
+Use route groups if needed:
+
+```text
+app/(authenticated)/
+app/(public)/
+app/(admin)/
+```
+
+## UX/UI Standards
+
+The UI must be beautiful, fast, and operationally clear.
+
+### Design Direction
+
+Use:
+
+* Clean admin dashboard style
+* Strong typography
+* Spacious cards
+* Sticky filters
+* Sticky table headers
+* Clear status badges
+* Large touch-friendly action buttons
+* Print-friendly layouts
+* Responsive tablet support
+
+Avoid:
+
+* Dense clutter
+* Too many colors without meaning
+* Hidden critical actions
+* Modal-only workflows for heavy data entry
+* Large unpaginated tables
+
+### Status Colors
+
+Use consistent meaning:
+
+```text
+Waiting    = amber
+Boarded    = green
+No Show    = red
+Cancelled  = gray
+Ready      = green
+Need Staff = red or amber
+Unassigned = blue or amber
+```
+
+### Critical UX Flows
+
+Optimize these flows first:
+
+1. Create booking quickly.
+2. Search booking quickly.
+3. Assign driver quickly.
+4. Change pickup status quickly.
+5. Move No Show to next round.
+6. Assign at least 2 staff.
+7. Print driver job sheet.
+8. View daily capacity.
+9. Export operational report.
+
+## Workflow: Production Delivery Process
+
+When asked to plan or execute work, follow this sequence.
+
+### Phase 1: Product Discovery
+
+Owner: Product Manager
+
+Tasks:
+
+1. Identify users and roles.
+2. Define operational pain points.
+3. Map existing manual workflow.
+4. Define success metrics.
+5. Prioritize MVP scope.
+6. Define non-goals.
+7. Confirm reporting needs.
+8. Confirm data ownership.
+
+Outputs:
+
+* Product requirements document
+* MVP scope
+* User roles
+* Workflow map
+* Acceptance criteria
+
+Key questions:
+
+* Who creates bookings?
+* Who assigns drivers?
+* Who confirms pickup status?
+* Who assigns staff?
+* Who needs reports?
+* Is data imported from agents or keyed manually?
+* Is live mobile usage required for drivers/staff?
+* Are exports legally/accounting relevant?
+
+### Phase 2: System Design
+
+Owner: Solution Architect / Senior Software Engineer
+
+Tasks:
+
+1. Choose backend architecture.
+2. Design database schema.
+3. Define API contracts.
+4. Define auth and permissions.
+5. Define realtime strategy.
+6. Define export/reporting strategy.
+7. Define audit log strategy.
+8. Define deployment architecture.
+
+Outputs:
+
+* System architecture diagram
+* ERD
+* API specification
+* Permission matrix
+* Infrastructure plan
+* Technical risk list
+
+### Phase 3: UX/UI Design
+
+Owner: UX/UI Designer
+
+Tasks:
+
+1. Convert current prototype into production wireframes.
+2. Design dashboard layout.
+3. Design booking form.
+4. Design assignment tables.
+5. Design mobile/tablet views.
+6. Design print views.
+7. Define component system.
+8. Validate with operations users.
+
+Outputs:
+
+* Wireframes
+* High-fidelity screens
+* Component inventory
+* Design tokens
+* User flow diagrams
+* Print layout specs
+
+### Phase 4: Engineering Implementation
+
+Owner: Engineering Manager / Software Engineers
+
+Split work into vertical slices.
+
+Recommended vertical slices:
+
+1. Auth + roles
+2. Booking CRUD
+3. Package/personnel master data
+4. Transport assignment
+5. Pickup recheck
+6. No Show move
+7. Staff assignment
+8. Staff board
+9. Master log
+10. Pivot analytics
+11. Export/reporting
+12. Audit logs
+13. Realtime updates
+14. Observability and deployment
+
+Each slice must include:
+
+* frontend
+* backend
+* database migration
+* validation
+* tests
+* logging
+* permission checks
+* acceptance criteria
+
+### Phase 5: QA
+
+Owner: QA Engineer
+
+Test levels:
+
+* Unit tests
+* Integration tests
+* API contract tests
+* E2E tests
+* Regression tests
+* Permission tests
+* Data import/export tests
+* Print layout tests
+* Performance tests
+* Browser compatibility tests
+
+Critical test scenarios:
+
+1. Create booking with valid data.
+2. Prevent invalid date/time/pax values.
+3. Assign driver to booking.
+4. Reassign driver and record audit log.
+5. Mark booking as Boarded.
+6. Mark booking as No Show.
+7. Move No Show to next round.
+8. Assign two staff and show Ready.
+9. Prevent inactive staff assignment.
+10. Generate driver job sheet.
+11. Export report with correct filters.
+12. Verify unauthorized users cannot access admin pages.
+13. Verify large dataset remains fast.
+
+### Phase 6: Security Review
+
+Owner: Security Engineer
+
+Review:
+
+* Authentication
+* Authorization
+* Session management
+* RBAC
+* Input validation
+* SQL injection protection
+* XSS protection
+* CSRF protection
+* Rate limiting
+* Audit logging
+* Export permissions
+* PII handling
+* Data retention
+* Secrets management
+* Backup and recovery
+* Dependency scanning
+
+Security requirements:
+
+* Never expose database credentials to frontend.
+* Never trust client-side role checks.
+* Validate all inputs server-side.
+* Escape or sanitize user-generated notes.
+* Apply least privilege to database and cloud credentials.
+* Log sensitive changes but avoid logging full PII unnecessarily.
+* Protect exports because they may contain customer names and phone numbers.
+
+### Phase 7: DevOps / Release
+
+Owner: DevOps Engineer / Platform Engineer
+
+Implement:
+
+* GitHub Actions CI
+* Linting
+* Type checking
+* Unit tests
+* E2E smoke tests
+* Build validation
+* Docker images if backend is containerized
+* Database migration pipeline
+* Preview environments
+* Staging environment
+* Production environment
+* Rollback plan
+* Backup schedule
+* Monitoring alerts
+
+Minimum CI checks:
+
+```text
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+pnpm test:e2e
+```
+
+Production readiness checklist:
+
+* Environment variables documented
+* Database migrations tested
+* Backups enabled
+* Error tracking enabled
+* Logs searchable
+* Uptime monitoring enabled
+* Alerts configured
+* Rollback tested
+* Admin seed user process defined
+* Terms for data retention defined
+
+### Phase 8: UAT and Training
+
+Owner: PM + Operations Lead
+
+Tasks:
+
+1. Run UAT with real operational scenarios.
+2. Compare outputs with current manual process.
+3. Validate reports and job sheets.
+4. Train admin users.
+5. Train transport users.
+6. Train staffing users.
+7. Gather feedback.
+8. Prioritize post-launch improvements.
+
+Outputs:
+
+* UAT sign-off
+* Training guide
+* Known issues list
+* Launch checklist
+
+### Phase 9: Launch and Post-Launch
+
+Owner: PM + Engineering + DevOps
+
+Launch process:
+
+1. Freeze schema changes.
+2. Import or seed master data.
+3. Verify production config.
+4. Run smoke tests.
+5. Enable monitoring.
+6. Launch to limited users first.
+7. Monitor errors and performance.
+8. Expand to full team.
+9. Run post-launch review.
+
+Post-launch metrics:
+
+* page load time
+* API latency
+* assignment completion time
+* number of No Show moves
+* report generation time
+* export success rate
+* active users
+* error rate
+* unresolved operational issues
+
+## Role Responsibilities
+
+### Product Manager
+
+Own:
+
+* Requirements
+* Scope
+* Prioritization
+* Acceptance criteria
+* Stakeholder alignment
+* Launch readiness
+
+Must produce:
+
+* PRD
+* roadmap
+* release notes
+* UAT checklist
+
+### Engineering Manager
+
+Own:
+
+* Delivery plan
+* Sprint planning
+* Technical coordination
+* Code review process
+* Delivery risk management
+
+Must ensure:
+
+* Clear tickets
+* Definition of Done
+* Engineering estimates
+* Dependency management
+
+### Solution Architect / Senior SE
+
+Own:
+
+* Architecture
+* Data model
+* API design
+* Performance strategy
+* Technical tradeoffs
+
+Must review:
+
+* schema
+* permission model
+* integration boundaries
+* scaling plan
+
+### Frontend Engineer
+
+Own:
+
+* Next.js implementation
+* UI components
+* tables
+* forms
+* realtime UI updates
+* print views
+* frontend performance
+
+Must ensure:
+
+* type-safe props
+* accessible controls
+* loading/error states
+* responsive layouts
+
+### Backend Engineer
+
+Own:
+
+* API services
+* database queries
+* business rules
+* background jobs
+* realtime events
+* export generation
+
+Must ensure:
+
+* server-side validation
+* transactional consistency
+* secure authorization
+* efficient queries
+
+### QA Engineer
+
+Own:
+
+* test plan
+* regression suite
+* bug verification
+* UAT support
+* release quality
+
+Must ensure:
+
+* critical workflows are covered
+* permission bugs are tested
+* exports and print outputs are validated
+
+### Security Engineer
+
+Own:
+
+* threat modeling
+* auth review
+* access control review
+* dependency scanning
+* data protection review
+
+Must ensure:
+
+* PII is protected
+* permissions are enforced server-side
+* audit logs exist for sensitive changes
+
+### DevOps Engineer
+
+Own:
+
+* CI/CD
+* infrastructure
+* monitoring
+* backups
+* environment management
+* rollback strategy
+
+Must ensure:
+
+* deployments are repeatable
+* observability is available
+* secrets are protected
+* database migrations are safe
+
+### UX/UI Designer
+
+Own:
+
+* user flows
+* visual design
+* component system
+* usability validation
+* print layout design
+
+Must ensure:
+
+* operational actions are fast
+* status meaning is obvious
+* mobile/tablet views work
+* forms reduce input errors
+
+### Data / BI Analyst
+
+Own:
+
+* KPI definitions
+* report accuracy
+* pivot logic
+* operational dashboards
+* export specs
+
+Must ensure:
+
+* metrics match business definitions
+* reports are filterable
+* edge cases are documented
+
+## Definition of Done
+
+A feature is done only when:
+
+1. Requirements are clear.
+2. UI is implemented.
+3. Backend is implemented.
+4. Database migration is included if needed.
+5. Server-side validation exists.
+6. Permission checks exist.
+7. Unit/integration tests are added.
+8. E2E test exists for critical flows.
+9. Error states are handled.
+10. Loading states are handled.
+11. Audit logs are added for sensitive changes.
+12. Observability is added for important failures.
+13. QA has verified the feature.
+14. Security concerns are resolved.
+15. Documentation or release notes are updated.
+
+## Performance Standards
+
+Target:
+
+* Dashboard initial load under 2 seconds on normal office internet.
+* Table interactions under 300ms for filtered/paginated data.
+* API p95 latency under 500ms for common operations.
+* Report generation moved to background job if over 3 seconds.
+* Large tables must use server pagination or virtualization.
+* Avoid loading all bookings into the browser.
+
+Backend rules:
+
+* Never fetch all historical bookings for normal views.
+* Always filter by date range for operational views.
+* Use cursor pagination for logs.
+* Add database indexes before scaling data volume.
+* Cache expensive aggregate reports.
+* Use materialized views for heavy analytics if needed.
+
+## Data Integrity Rules
+
+Enforce these rules server-side:
+
+1. Booking number should be unique per agent or globally, based on business rules.
+2. Join count cannot be negative.
+3. Visitor count cannot be negative.
+4. Total pax equals join count plus visitor count.
+5. Inactive drivers cannot be assigned to new transport jobs.
+6. Inactive staff cannot be assigned to new field jobs.
+7. Cancelled bookings cannot be boarded.
+8. No Show move must create a status history record.
+9. Staff KPI must use finalized boarded bookings by default.
+10. Exported reports must match applied filters.
+
+## Audit Log Requirements
+
+Record audit logs for:
+
+* booking creation
+* booking update
+* booking cancellation
+* driver assignment
+* driver reassignment
+* pickup status change
+* No Show move
+* staff assignment
+* staff removal
+* package update
+* employee status change
+* export generation
+* permission changes
+
+Audit log fields:
+
+```text
+id
+actor_user_id
+action
+entity_type
+entity_id
+before_value
+after_value
+ip_address
+user_agent
+created_at
+```
+
+## Security Permission Matrix
+
+Start with this RBAC model.
+
+```text
+Admin:
+  full access
+
+Operations Manager:
+  bookings, transport, staffing, reports, personnel read
+
+Transport Coordinator:
+  bookings read, transport write, job sheets, pickup status
+
+Staffing Coordinator:
+  bookings read, staffing write, staff board, staff KPI
+
+Driver:
+  assigned job sheets only, pickup status update if mobile driver app exists
+
+Field Staff:
+  assigned work view only, no customer export by default
+
+Viewer:
+  read-only dashboards and reports
+```
+
+Always enforce permissions on the backend.
+
+## Testing Checklist
+
+### Unit Tests
+
+Cover:
+
+* pax calculation
+* booking status transitions
+* No Show move logic
+* staff readiness calculation
+* KPI calculations
+* pivot aggregation
+* permission guards
+
+### Integration Tests
+
+Cover:
+
+* booking CRUD
+* transport assignment
+* staff assignment
+* export job creation
+* audit log creation
+* report filters
+
+### E2E Tests
+
+Cover:
+
+* create booking
+* assign driver
+* mark boarded
+* mark no show
+* move no show to next round
+* assign staff
+* view staff board
+* export report
+* print job sheet
+* permission denial
+
+## Suggested Monorepo Structure
+
+Use this structure for a scalable team setup:
+
+```text
+apps/
+  web/
+    app/
+    components/
+    features/
+    lib/
+    tests/
+  api/
+    src/
+      modules/
+        auth/
+        bookings/
+        transport/
+        staffing/
+        personnel/
+        packages/
+        reports/
+        exports/
+        audit/
+      common/
+      config/
+      main.ts
+packages/
+  database/
+    prisma/
+    migrations/
+  shared/
+    schemas/
+    types/
+  ui/
+    components/
+```
+
+If using a simpler setup, keep frontend and backend separate but share schemas through a package.
+
+## Coding Standards
+
+Use:
+
+* TypeScript strict mode
+* Zod schemas for validation
+* Shared DTO types where practical
+* ESLint
+* Prettier
+* Conventional commits
+* Feature-based folder structure
+
+Avoid:
+
+* giant files
+* hidden business logic in UI components
+* direct database access from frontend
+* client-only permission checks
+* untyped API responses
+* loading full datasets unnecessarily
+
+## Output Templates
+
+### PRD Output
+
+When asked to create a PRD, include:
+
+```text
+1. Overview
+2. Problem
+3. Goals
+4. Non-goals
+5. Users and roles
+6. Core workflows
+7. Feature requirements
+8. Reporting requirements
+9. Permissions
+10. Data requirements
+11. Success metrics
+12. MVP scope
+13. Future scope
+14. Risks
+15. Acceptance criteria
+```
+
+### Technical Design Output
+
+When asked to create technical design, include:
+
+```text
+1. Architecture overview
+2. Tech stack decision
+3. Database schema
+4. API contracts
+5. Auth and RBAC
+6. Realtime strategy
+7. Reporting/export strategy
+8. Performance strategy
+9. Security controls
+10. Observability
+11. Deployment plan
+12. Risks and tradeoffs
+```
+
+### Sprint Plan Output
+
+When asked to create a sprint plan, include:
+
+```text
+1. Sprint goal
+2. Tickets by role
+3. Dependencies
+4. Acceptance criteria
+5. QA plan
+6. Security review items
+7. Demo checklist
+8. Release risks
+```
+
+### QA Plan Output
+
+When asked to create QA plan, include:
+
+```text
+1. Scope
+2. Test environments
+3. Test data
+4. Functional test cases
+5. Permission test cases
+6. Regression test cases
+7. E2E flows
+8. Performance tests
+9. Export/print validation
+10. Release sign-off checklist
+```
+
+### Security Review Output
+
+When asked to create security review, include:
+
+```text
+1. Assets and data types
+2. Threat model
+3. Auth risks
+4. Authorization risks
+5. Input validation risks
+6. PII handling
+7. Audit logging
+8. Dependency risks
+9. Infrastructure risks
+10. Required mitigations
+```
+
+## Migration From Prototype
+
+When converting the original prototype, treat each prototype function as a production feature candidate.
+
+Map prototype areas as follows:
+
+```text
+orders[] -> bookings table
+employees[] -> employees table
+productPackets[] -> packages table
+initSystem() mock data -> database seed script
+renderOrderList() -> orders page + bookings API
+renderCapacityDashboard() -> capacity API + dashboard cards
+renderTransportAssign() -> transport assignments page + API
+renderTransportRecheck() -> pickup status realtime page + API
+renderStaffingSetup() -> staffing assignment page + API
+renderStaffBoard() -> realtime staff board page + API
+renderMasterSummary() -> master log report
+renderPivotAnalysis() -> reporting aggregation API
+renderStaffKPI() -> staff KPI report
+viewJobSheet() -> printable job sheet page + export
+simulateExport() -> real export background job
+```
+
+Do not port the prototype line-by-line. Rebuild it as production modules.
+
+## Prioritized MVP
+
+Build MVP in this order:
+
+1. Authentication and roles
+2. Booking CRUD
+3. Personnel and package master data
+4. Daily order list with filters
+5. Capacity dashboard
+6. Driver assignment
+7. Pickup status recheck
+8. No Show move
+9. Staff assignment
+10. Staff board
+11. Driver job sheet print
+12. Master log
+13. Basic pivot reports
+14. Staff KPI
+15. Export CSV/XLSX
+16. Audit logs
+17. Realtime updates
+18. Performance optimization
+
+## Initial Engineering Tickets
+
+Create these tickets first:
+
+```text
+PM-001 Define MVP requirements and user roles
+UX-001 Redesign dashboard information architecture
+UX-002 Design booking creation flow
+UX-003 Design transport assignment flow
+UX-004 Design staff board and job sheet print layout
+
+ARCH-001 Choose backend architecture
+ARCH-002 Create ERD and data model
+ARCH-003 Define API contracts
+ARCH-004 Define RBAC matrix
+
+FE-001 Setup Next.js app with TypeScript and Tailwind
+FE-002 Setup shadcn/ui and base layout
+FE-003 Build authenticated dashboard shell
+FE-004 Build order list page
+FE-005 Build booking form
+FE-006 Build transport assignment page
+FE-007 Build pickup recheck page
+FE-008 Build staffing setup page
+FE-009 Build staff board page
+FE-010 Build report pages
+
+BE-001 Setup NestJS API
+BE-002 Setup PostgreSQL and ORM
+BE-003 Create database migrations
+BE-004 Implement auth and RBAC
+BE-005 Implement bookings API
+BE-006 Implement personnel API
+BE-007 Implement packages API
+BE-008 Implement transport API
+BE-009 Implement staffing API
+BE-010 Implement reports API
+BE-011 Implement export jobs
+BE-012 Implement audit logs
+BE-013 Implement realtime events
+
+QA-001 Create QA test plan
+QA-002 Create E2E smoke tests
+QA-003 Create regression suite for booking/transport/staffing
+
+SEC-001 Threat model operations platform
+SEC-002 Review RBAC and data access
+SEC-003 Review export and PII protection
+
+DEVOPS-001 Setup CI pipeline
+DEVOPS-002 Setup staging environment
+DEVOPS-003 Setup production deployment
+DEVOPS-004 Setup monitoring and alerts
+DEVOPS-005 Setup backup and restore process
+```
+
+## Decision Guidance
+
+When asked “what backend should we use?”, recommend:
+
+```text
+Use Next.js for the frontend and NestJS + PostgreSQL for the backend.
+
+This gives a fast modern UI while keeping backend business logic, permissions, reporting, realtime events, audit logs, and large-data workflows cleanly separated. Use Redis for queues/cache/realtime coordination when data and operations grow.
+```
+
+If the user wants fastest MVP:
+
+```text
+Use Next.js full-stack with PostgreSQL first, but keep domain boundaries clean so the backend can be extracted to NestJS later.
+```
+
+If the user wants maximum long-term scale:
+
+```text
+Use Next.js frontend, NestJS or Go backend, PostgreSQL, Redis, background jobs, and materialized reporting tables.
+```
+
+## Anti-Patterns
+
+Avoid:
+
+* keeping all data in browser state
+* using localStorage as production database
+* one giant React component
+* one giant API route
+* exporting huge reports synchronously
+* no audit logs
+* no server-side permission checks
+* no indexes on date/status filters
+* loading all bookings into client memory
+* mixing UI rendering with business rules
+* relying on mock data after MVP planning
+* making driver/staff workflows desktop-only if field usage is required
+
+## Final Response Behavior
+
+When using this skill, always produce practical production-ready outputs.
+
+Prefer:
+
+* clear phases
+* role-based responsibilities
+* concrete tickets
+* specific architecture decisions
+* database/API details
+* QA/security/devops checklists
+* performance and scaling notes
+
+Avoid vague advice.
+
+When tradeoffs exist, state the recommended default first, then give alternatives.
+
+````
+
+ตัวนี้เป็น `SKILL.md` ใช้งานได้เลยครับ แต่ถ้าจะทำเป็น skill ที่อัปโหลดจริงใน ChatGPT ควรมีโครงสร้างประมาณนี้ต่อ:
+
+```text
+zipline-ops-platform/
+  SKILL.md
+  agents/
+    openai.yaml
+  references/
+    data-model.md
+    api-contracts.md
+    qa-checklist.md
+    security-checklist.md
+    delivery-workflow.md
+````
+
+ถ้าจะให้ “production กว่านี้อีกขั้น” ผมแนะนำแยก `SKILL.md` ให้สั้นลง แล้วโยก database schema, API spec, QA, Security, DevOps ไปไว้ใน `references/` เพื่อไม่ให้ context หนักเกินตอนใช้งานจริง.

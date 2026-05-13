@@ -1,0 +1,76 @@
+อันนี้ถ้าดูจากโค้ดที่แปะมา มัน “ไม่ได้ต่อฐานข้อมูลจริง” ครับ แต่เป็นหน้า HTML เดี่ยวที่จำลองข้อมูลขึ้นมาเองใน browser 
+
+จุดสำคัญคือมีบรรทัดพวกนี้:
+
+```js
+let orders = [];
+let employees = [...]
+const productPackets = [...]
+```
+
+แล้วด้านล่างมีฟังก์ชัน:
+
+```js
+function initSystem() {
+   ...
+   orders.push({...})
+}
+```
+
+ซึ่งหมายถึง:
+
+* ข้อมูล orders ถูก generate ปลอมขึ้นมาใน JavaScript
+* ไม่มี API call
+* ไม่มี fetch()
+* ไม่มี axios
+* ไม่มี Firebase / Supabase / MySQL / MongoDB
+* ไม่มี backend
+
+ถ้าเป็นระบบที่ “ต่อข้อมูลจริง” ปกติจะเห็นประมาณนี้:
+
+```js
+fetch('https://api...')
+```
+
+หรือ
+
+```js
+axios.get(...)
+```
+
+หรือ
+
+```js
+const supabase = createClient(...)
+```
+
+หรือ endpoint พวก:
+
+```js
+/api/orders
+```
+
+แต่ไฟล์นี้ไม่มีเลย
+
+สรุปง่าย ๆ:
+
+* เป็น prototype / mockup dashboard
+* ใช้ Tailwind CDN
+* ทุกอย่างรันฝั่ง browser
+* รีเฟรชหน้าแล้วข้อมูลหาย
+* ยังไม่เชื่อม database จริง
+
+อีกอย่างที่เห็นคือมันถูกสร้างแนว AI-generated ค่อนข้างชัด เช่น:
+
+* โครงสร้าง component ยาวมากในไฟล์เดียว
+* ข้อมูล mock จำนวนมาก
+* naming pattern สม่ำเสมอมาก
+* UI ครบแต่ backend ไม่มี
+
+ถ้าอยากเช็กเองใน Gemini Canvas:
+
+1. เปิด Developer Tools (F12)
+2. ดูแท็บ Network
+3. รีเฟรชหน้า
+
+ถ้าไม่มี request ไป API ภายนอก → แปลว่ายัง local/mock ทั้งหมดครับ

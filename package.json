@@ -1,0 +1,18 @@
+{
+  "name": "zipline-command-center",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Production scaffold for the Zipline Command Center operations platform.",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "node ./node_modules/next/dist/bin/next dev ./apps/web --hostname 127.0.0.1 --port 3000",
+    "build": "node ./node_modules/next/dist/bin/next build ./apps/web",
+    "lint": "node ./node_modules/next/dist/bin/next lint ./apps/web",
+    "db:generate": "node ./node_modules/prisma/build/index.js generate --schema packages/db/prisma/schema.prisma",
+    "db:migrate": "node ./node_modules/prisma/build/index.js migrate dev --schema packages/db/prisma/schema.prisma",
+    "db:seed": "node packages/db/prisma/seed.mjs"
+  }
+}

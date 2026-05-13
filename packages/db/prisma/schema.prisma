@@ -1,0 +1,125 @@
+generator client {
+  provider = "prisma-client-js"
+  engineType = "library"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum BookingStatus {
+  WAITING
+  BOARDED
+  NO_SHOW
+  CANCELLED
+  RESCHEDULED
+}
+
+enum EmployeeRole {
+  ADMIN
+  DRIVER
+  STAFF
+  MANAGER
+}
+
+model User {
+  id          String     @id @default(cuid())
+  email       String     @unique
+  displayName String
+  role        EmployeeRole
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  bookings    Booking[]  @relation("UserBookings")
+  audits      AuditLog[] @relation("AuditActor")
+}
+
+model Employee {
+  id           String                @id @default(cuid())
+  code         String                @unique
+  name         String
+  role         EmployeeRole
+  active       Boolean               @default(true)
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+  assignments  TransportAssignment[]
+  staffLinks   StaffAssignment[]
+}
+
+model ProductPackage {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  detail    String
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  bookings  Booking[]
+}
+
+model Booking {
+  id                  String                @id @default(cuid())
+  bookingNumber       String                @unique
+  serviceDate         DateTime
+  timeSlot            String
+  agentName           String
+  customerName        String
+  phone               String
+  hotel               String
+  room                String?
+  pickupPax           Int
+  joinCount           Int
+  adminNote           String?
+  sourceChannel       String?
+  status              BookingStatus         @default(WAITING)
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+  createdById         String?
+  productPackageId    String?
+  createdBy           User?                 @relation("UserBookings", fields: [createdById], references: [id])
+  productPackage      ProductPackage?       @relation(fields: [productPackageId], references: [id])
+  transportAssignment TransportAssignment?
+  pickupEvents        PickupStatusEvent[]
+  staffAssignments    StaffAssignment[]
+}
+
+model TransportAssignment {
+  id          String   @id @default(cuid())
+  bookingId   String   @unique
+  driverId    String
+  assignedAt  DateTime @default(now())
+  assignedBy  String?
+  booking     Booking  @relation(fields: [bookingId], references: [id])
+  driver      Employee @relation(fields: [driverId], references: [id])
+}
+
+model PickupStatusEvent {
+  id        String        @id @default(cuid())
+  bookingId String
+  status    BookingStatus
+  note      String?
+  createdAt DateTime      @default(now())
+  createdBy String?
+  booking   Booking       @relation(fields: [bookingId], references: [id])
+}
+
+model StaffAssignment {
+  id         String   @id @default(cuid())
+  bookingId  String
+  employeeId String
+  createdAt  DateTime @default(now())
+  booking    Booking  @relation(fields: [bookingId], references: [id])
+  employee   Employee @relation(fields: [employeeId], references: [id])
+
+  @@unique([bookingId, employeeId])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  entityType String
+  entityId   String
+  action     String
+  beforeJson String?
+  afterJson  String?
+  createdAt  DateTime @default(now())
+  actor      User?    @relation("AuditActor", fields: [actorId], references: [id])
+}
