@@ -257,7 +257,13 @@ export async function DELETE(request: NextRequest) {
       });
     }
 
-    return NextResponse.json({ success: true }, { status: 200 });
+    const refreshedBooking = await prisma.booking.update({
+      where: { id: booking.id },
+      data: {},
+      select: { updatedAt: true }
+    });
+
+    return NextResponse.json({ success: true, updatedAt: refreshedBooking.updatedAt.getTime() }, { status: 200 });
   } catch (error) {
     console.error("Transport assignment delete error:", error);
     return NextResponse.json(

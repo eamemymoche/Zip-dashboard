@@ -169,7 +169,7 @@ Future agents should migrate write paths carefully and make conflict handling ex
 - `passwordHash` added to `User` model
 - Login API at `api/auth/login` (POST/GET/DELETE)
 - Session cookie `zcc_session` with HMAC-SHA256 signed token (8-hour expiry)
-- **Dev auth fallback**: When `DATABASE_URL` is not set or DB is unavailable, login API falls back to hardcoded dev users: `officer@zipline.com/zipline123` (MANAGER), `owner@zipline.com/owner123` (ADMIN), `accounting@zipline.com/accounting123` (ACCOUNTING). These dev users have IDs prefixed `dev-` (e.g., `dev-officer-001`). This is a local-dev-only fallback, clearly NOT production auth — production auth requires a real PostgreSQL database with seeded users.
+- **Dev auth fallback**: When `DATABASE_URL` is not set, DB is unavailable, or any DB connection error occurs during login, the login API falls back to hardcoded dev users: `officer@zipline.com/zipline123` (MANAGER), `owner@zipline.com/owner123` (ADMIN), `accounting@zipline.com/accounting123` (ACCOUNTING). These dev users have IDs prefixed `dev-` (e.g., `dev-officer-001`). This is a local-dev-only fallback, clearly NOT production auth — production auth requires a real PostgreSQL database with seeded users. Dev fallback is checked first, before any DB connection attempt.
 - Middleware gates all non-public paths; redirects to `/login` on failure with `from` param
 - Login page at `login/page.tsx` — redirects to `/` on success. Login form now has password show/hide toggle and a credentials table (Role | Email | Password).
 - `AuthProvider` + `useAuth()` hook in `lib/auth/auth-context.tsx`

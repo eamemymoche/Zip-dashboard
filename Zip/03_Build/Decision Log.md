@@ -651,3 +651,39 @@ Per [[Roles and Permissions]] and [[Security and Multi-User Guardrails]], the sy
 - `apps/web/app/api/staff-assignment/route.ts` — role guard on POST
 - `apps/web/app/operations-dashboard.tsx` — sidebar nav items filtered by role with explicit conditionals
 - `Zip/03_Build/Security and Multi-User Guardrails.md` — updated Next Phase section with implementation details
+
+## 2026-05-16
+
+### Decision
+
+Fix login auth fallback reliability and transport-assignment DELETE concurrency token.
+
+### Context
+
+The dev auth fallback was implemented as a post-DB-check fallback, but when Prisma client initialization throws (e.g., no DATABASE_URL), the error was not caught and fell through to a 500 response instead of falling back to dev users. Additionally, the transport-assignment DELETE endpoint did not refresh `Booking.updatedAt` after an unassignment, leaving the client without a valid concurrency token for subsequent writes.
+
+### Consequences
+
+**Login API (`apps/web/app/api/auth/login/route.ts`):**
+- Dev auth check moved to run FIRST, before any Prisma initialization or DB lookup
+- Prisma DB path now wrapped in try/catch at top level, so connection errors return 500 (not caught by dev fallback path)
+- GET handler similarly defers Prisma to a try/catch block
+- Dev fallback is now a clear first path: if email/password matches a dev user, issue session immediately with no DB involvement whatsoever
+
+**Transport-assignment DELETE (`apps/web/app/api/transport-assignment/route.ts`):**
+- After unassignment (delete), now calls `prisma.booking.update({ where: { id: booking.id }, data: {}, select: { updatedAt: true } })` to refresh the canonical concurrency token
+- Returns `{ success: true, updatedAt: refreshedBooking.updatedAt.getTime() }` so client can store the new token
+- This ensures the concurrency token always advances after a write, even for unassignment operations
+
+### Files Changed
+
+- `apps/web/app/api/auth/login/route.ts` — dev fallback reordered before DB path; GET handler refactored with try/catch around Prisma
+- `apps/web/app/api/transport-assignment/route.ts` — DELETE now returns refreshed `updatedAt` after unassignment
+- `Zip/03_Build/Security and Multi-User Guardrails.md` — updated dev fallback description to clarify dev-first check order
+
+### What This Does NOT Change
+
+- Production DB auth still requires a real PostgreSQL instance with seeded user credentials
+- The dev fallback remains a local-dev-only path with `dev-` prefixed user IDs
+- No changes to Prisma schema, migrations, or provider
+- No changes to session token format or cookie structure

@@ -69,6 +69,66 @@
 - [x] **Task 10:** Split Staffing Setup into own component — created `staffing-setup-table.tsx` containing all Staffing > Setup rendering (date/time/packet filter toolbar, orders table with staff checkbox grid, status badges). Props: `staffDate`, `staffTime`, `staffPacket`, `staffingOrders`, `staffMembers`, `initialData`, `onStaffDateChange`, `onStaffTimeChange`, `onStaffPacketChange`, `updateOrder`, `saveStaffAssignment`. Uses `DatePicker` from `./date-picker`. Dashboard imports `StaffingSetupTable` and renders it inside `{staffingView === "setup" ? ... : null}`. No persistence logic in the component; callbacks delegate to parent. Build passes clean.
 - [x] **2026-05-15 Auth UX Fixes:** Fixed four auth UX issues: (1) `logout()` now redirects to `/login` directly via `window.location.href` after DELETE API call. (2) Logout button moved from top-right content header to sidebar bottom with logout SVG icon, `marginTop: "auto"`. Top-right user info strip removed. (3) Added `zcc_role` cookie alongside `zcc_session` — login API sets it on POST, proxy reads it synchronously and injects into `x-user-role` headers, so role is available immediately on first render fixing Personnel nav visibility. DELETE clears both cookies. (4) Login panel now has password show/hide eye toggle and a 3-row credentials table (Role | Email | Password) replacing the single-line dev hint. Build passes clean.
 
+## 2026-05-16 — Auth / Concurrency Fixes
+
+### What was fixed
+
+**Login dev fallback reliability (A. Auth / Login reality):**
+The dev auth check was positioned AFTER `const prisma = await getPrisma()`. When `DATABASE_URL` is not set, `getPrisma()` throws before the dev check runs. Login always fell through to a 500 instead of the dev fallback, making `officer@zipline.com/zipline123` unusable locally.
+- Fix: dev user check moved FIRST, before any Prisma init or DB connection attempt
+- Dev users now work with zero DB involvement: `officer@zipline.com/zipline123` (MANAGER), `owner@zipline.com/owner123` (ADMIN), `accounting@zipline.com/accounting123` (ACCOUNTING)
+- Build passes ✓
+
+**Transport-assignment DELETE concurrency token (B. Concurrency correctness):**
+The DELETE handler for transport assignment did not call `prisma.booking.update({}, select: updatedAt)` after unassignment, so the client received no refreshed `updatedAt`. This left the client with a stale token for subsequent writes.
+- Fix: DELETE now calls `prisma.booking.update({ where: { id: booking.id }, data: {}, select: { updatedAt: true } })` and returns `updatedAt` in response
+- All three write APIs (transport-assignment, pickup-status, staff-assignment) now return a refreshed `Booking.updatedAt` token after every successful write
+- Build passes ✓
+
+**Logout / back-navigation (E. Documentation truthfulness — logout/back verified):**
+- Verified via curl: logout DELETE clears both `zcc_session` and `zcc_role` cookies
+- Verified: after logout, GET to protected `/` returns `307 Temporary Redirect` to `/login?from=%2F` — dashboard cannot be accessed via browser Back
+- Verified: session check after DELETE returns `{ user: null }` confirming cookie is gone
+- No code changes needed for logout/back-nav — proxy.ts already correctly guards all non-public paths
+
+### Module Ownership and Split Guide — no changes needed
+
+The files changed are existing API route files. No new files were created, no ownership boundaries shifted, and no component extraction was done. The Module Ownership and Split Guide's existing entries remain accurate. No update required.
+
+### Files changed
+
+- `apps/web/app/api/auth/login/route.ts` — dev fallback reordered before DB path; GET handler uses try/catch around Prisma; DELETE clears both cookies
+- `apps/web/app/api/transport-assignment/route.ts` — DELETE returns refreshed `updatedAt`
+- `Zip/03_Build/Security and Multi-User Guardrails.md` — dev fallback description updated to clarify dev-first check order
+- `Zip/03_Build/Decision Log.md` — new 2026-05-16 entry documenting fix scope and non-scopes
+
+### Manual verification results (curl-based)
+
+| Test | Result |
+|---|---|
+| POST `/api/auth/login` with `officer@zipline.com/zipline123` | ✓ Returns user with `dev-officer-001` and `MANAGER` role |
+| GET `/api/auth/login` with session cookie | ✓ Returns correct user |
+| DELETE `/api/auth/login` | ✓ Clears session, returns `{ success: true }` |
+| GET `/api/auth/login` after DELETE | ✓ Returns `{ user: null }` — cookie cleared |
+| GET `/` (protected route) without session | ✓ Returns `307 Temporary Redirect` to `/login?from=%2F` |
+| GET `/` (protected route) with valid session | ✓ Returns `200 OK` |
+
+### What is local-dev fallback vs production-safe
+
+**Local-dev fallback (works without PostgreSQL):**
+- Login with dev users (`officer@zipline.com/zipline123`, `owner@zipline.com/owner123`, `accounting@zipline.com/accounting123`)
+- All dashboard reads fall back to seed data (no persistence)
+- All write APIs require a live PostgreSQL connection — writes fail/500 when DB unavailable
+
+**Production-safe (requires real PostgreSQL):**
+- DB-backed login with seeded user credentials
+- Persistent bookings, transport assignments, pickup status, staffing assignments
+- Real `Booking.updatedAt` as concurrency token
+- Role enforcement on all write APIs
+
+### Build status
+- `npm run build` passes: `✓ Compiled successfully in 3.0s`, TypeScript `Finished in 3.2s`
+
 ## 2026-05-15 Next Execution Plan
 
 ### Current stable baseline

@@ -76,16 +76,18 @@ export async function POST(request: NextRequest) {
     return response;
   }
 
-  const prisma = await getPrisma();
   try {
+    const prisma = await getPrisma();
     const user = await prisma.user.findUnique({ where: { email } });
 
     if (!user || !user.passwordHash) {
+      await prisma.$disconnect();
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
     }
 
     const hash = hashPassword(password);
     if (hash !== user.passwordHash) {
+      await prisma.$disconnect();
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
     }
 
@@ -105,12 +107,11 @@ export async function POST(request: NextRequest) {
       path: "/",
       maxAge: 60 * 60 * 8
     });
+    await prisma.$disconnect();
     return response;
   } catch (error) {
-    console.error("Login error:", error);
+    console.error("Login DB error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
-  } finally {
-    await prisma.$disconnect();
   }
 }
 
@@ -135,17 +136,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ user: { id: devUser.id, email: devUser.email, displayName: devUser.displayName, role: devUser.role } });
   }
 
-  const prisma = await getPrisma();
   try {
+    const prisma = await getPrisma();
     const user = await prisma.user.findUnique({
       where: { id: session.userId },
       select: { id: true, email: true, displayName: true, role: true }
     });
+    await prisma.$disconnect();
     return NextResponse.json({ user });
   } catch {
     return NextResponse.json({ user: null }, { status: 200 });
-  } finally {
-    await prisma.$disconnect();
   }
 }
 
