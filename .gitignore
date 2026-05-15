@@ -9,3 +9,4 @@ apps/*/.next/
 packages/*/node_modules/
 *.log
 
+Zip/.obsidian/workspace.json
