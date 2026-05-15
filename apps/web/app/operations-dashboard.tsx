@@ -3,6 +3,11 @@
 import { Fragment, useState, useEffect, useRef } from "react";
 import { useLang } from "./i18n";
 import { DatePicker } from "./date-picker";
+import { TransportAssignTable } from "./transport-assign-table";
+import { TransportRecheckTable } from "./transport-recheck-table";
+import { TransportSheetView } from "./transport-sheet-view";
+import StaffingSetupTable from "./staffing-setup-table";
+import { useAuth } from "../lib/auth/auth-context";
 import * as XLSX from "xlsx";
 
 import type {
@@ -83,6 +88,8 @@ function navIcon(key: MainView) {
 
 export function OperationsDashboard({ initialData }: { initialData: DashboardSeed }) {
   const { t } = useLang();
+  const { user, logout, loading } = useAuth();
+  const userRole = user?.role ?? null;
   const [orders, setOrders] = useState(initialData.orders);
   const [employees, setEmployees] = useState(initialData.employees);
   const [productPackets] = useState(initialData.productPackets);
@@ -133,6 +140,7 @@ export function OperationsDashboard({ initialData }: { initialData: DashboardSee
   const [recheckSortField, setRecheckSortField] = useState<string>("");
   const [recheckSortDir, setRecheckSortDir] = useState<"asc" | "desc">("asc");
   const [selectedTimeSlots, setSelectedTimeSlots] = useState<string[]>([]);
+  const [transportSavingOrderId, setTransportSavingOrderId] = useState<number | null>(null);
   const [currentHour, setCurrentHour] = useState(() => {
     const now = new Date();
     return new Date(now.toLocaleString("en-US", { timeZone: "Asia/Bangkok" })).getHours();
@@ -170,10 +178,10 @@ export function OperationsDashboard({ initialData }: { initialData: DashboardSee
     photo: ""
   });
 
-  const driverNames = employees
-    .filter((employee) => employee.role === "Driver")
-    .map((employee) => employee.name);
+  const drivers = employees.filter((employee) => employee.role === "Driver");
+  const driverNames = drivers.map((employee) => employee.name);
   const staffMembers = employees.filter((employee) => employee.role === "Staff");
+  const vehicles = initialData.vehicles;
 
   const filteredOrders = orders.filter((order) => {
     const query = orderSearch.trim().toLowerCase();
@@ -556,6 +564,116 @@ export function OperationsDashboard({ initialData }: { initialData: DashboardSee
     setOrders((current) => current.map((order) => (order.id === id ? updater(order) : order)));
   }
 
+  function updateOrderAdminNote(id: number, adminNote: string) {
+    updateOrder(id, (current) => ({ ...current, adminNote }));
+  }
+
+async function saveTransportAssignment(
+    order: OrderRecord,
+    patch: { driverCode?: string; vehicleCode?: string; adminNote?: string }
+  ) {
+    const nextDriverCode = patch.driverCode ?? order.driverCode;
+    const nextVehicleCode = patch.vehicleCode ?? order.vehicleCode;
+    const nextAdminNote = patch.adminNote ?? order.adminNote;
+
+    setTransportSavingOrderId(order.id);
+    try {
+      const response = await fetch("/api/transport-assignment", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          bookingNumber: order.booking,
+          driverCode: nextDriverCode,
+          vehicleCode: nextVehicleCode,
+          adminNote: nextAdminNote,
+          updatedAt: order.updatedAt
+        })
+      });
+
+      if (response.status === 409) {
+        showToast("ข้อมูลถูกแก้ไขโดยผู้อื่นแล้ว กรุณารีเฟรชหน้า", "red");
+        setTransportSavingOrderId(null);
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error("save failed");
+      }
+
+      const result = await response.json();
+      updateOrder(order.id, (current) => ({
+        ...current,
+        driver: result.transport.driverName,
+        driverCode: result.transport.driverCode,
+        vehicle: result.transport.vehicleCode,
+        vehicleCode: result.transport.vehicleCode,
+        adminNote: result.transport.adminNote,
+        updatedAt: result.updatedAt ?? current.updatedAt
+      }));
+showToast(nextDriverCode ? "บันทึกการจัดรถสำเร็จ" : "ยกเลิกการจัดรถแล้ว", nextDriverCode ? "emerald" : "slate");
+    } catch {
+      showToast("บันทึกการจัดรถไม่สำเร็จ", "red");
+    } finally {
+      setTransportSavingOrderId(null);
+    }
+  }
+
+  async function saveStaffAssignment(orderId: number, assignedStaff: string[]) {
+    const order = orders.find((o) => o.id === orderId);
+    if (!order) return;
+    const staffIds = assignedStaff
+      .map((name) => {
+        const emp = staffMembers.find((s) => s.name === name);
+        return emp?.id ?? "";
+      })
+      .filter(Boolean);
+    try {
+      const response = await fetch("/api/staff-assignment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bookingNumber: order.booking, staffAssignments: staffIds, updatedAt: order.updatedAt })
+      });
+      if (response.status === 409) {
+        showToast("ข้อมูลถูกแก้ไขโดยผู้อื่นแล้ว กรุณารีเฟรชหน้า", "red");
+        return;
+      }
+      if (!response.ok) {
+        console.warn("Staff assignment persist failed:", await response.text());
+        return;
+      }
+      const result = await response.json();
+      updateOrder(orderId, (o) => ({ ...o, updatedAt: result.updatedAt ?? o.updatedAt }));
+    } catch (err) {
+      console.warn("Staff assignment API error:", err);
+    }
+  }
+
+  async function savePickupStatus(bookingNumber: string, status: string, note?: string, order?: OrderRecord) {
+    try {
+      const response = await fetch("/api/pickup-status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bookingNumber, status, note, updatedAt: order?.updatedAt })
+      });
+      if (response.status === 409) {
+        showToast("ข้อมูลถูกแก้ไขโดยผู้อื่นแล้ว กรุณารีเฟรชหน้า", "red");
+        return;
+      }
+      if (!response.ok) {
+        console.warn("Pickup status persist failed:", await response.text());
+        return;
+      }
+      const result = await response.json();
+      if (order && result.updatedAt) {
+        updateOrder(order.id, (o) => ({ ...o, updatedAt: result.updatedAt }));
+      }
+    } catch (err) {
+      console.warn("Pickup status API error:", err);
+    }
+  }
+
   function startEditOrder(order: OrderRecord) {
     setEditingOrderId(order.id);
     setEditForm({
@@ -573,25 +691,64 @@ export function OperationsDashboard({ initialData }: { initialData: DashboardSee
     });
   }
 
-  function saveEditOrder() {
+async function saveEditOrder() {
     if (!editingOrderId || !editForm) return;
-    updateOrder(editingOrderId, (current) => ({
-      ...current,
-      booking: editForm.booking,
-      agent: editForm.agent,
-      packet: editForm.packet,
-      date: editForm.date,
-      time: editForm.time,
-      name: editForm.name,
-      phone: editForm.phone,
-      hotel: editForm.hotel,
-      room: editForm.room,
-      join: Number(editForm.join),
-      visitor: Number(editForm.visitor)
-    }));
-    setEditingOrderId(null);
-    setEditForm(null);
-    showToast("แก้ไขออเดอร์สำเร็จ", "emerald");
+    const order = orders.find((o) => o.id === editingOrderId);
+    if (!order) return;
+
+    try {
+      const response = await fetch("/api/order", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bookingNumber: order.booking,
+          serviceDate: editForm.date,
+          timeSlot: editForm.time,
+          agentName: editForm.agent,
+          customerName: editForm.name,
+          phone: editForm.phone,
+          hotel: editForm.hotel,
+          room: editForm.room,
+          pickupPax: Number(editForm.join),
+          joinCount: Number(editForm.visitor),
+          productPackageName: editForm.packet,
+          updatedAt: order.updatedAt
+        })
+      });
+
+      if (response.status === 409) {
+        showToast("ข้อมูลถูกแก้ไขโดยผู้อื่นแล้ว กรุณารีเฟรชหน้า", "red");
+        setEditingOrderId(null);
+        setEditForm(null);
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error("update failed");
+      }
+
+      const result = await response.json();
+      updateOrder(editingOrderId, (current) => ({
+        ...current,
+        booking: editForm.booking,
+        agent: editForm.agent,
+        packet: editForm.packet,
+        date: editForm.date,
+        time: editForm.time,
+        name: editForm.name,
+        phone: editForm.phone,
+        hotel: editForm.hotel,
+        room: editForm.room,
+        join: Number(editForm.join),
+        visitor: Number(editForm.visitor),
+        updatedAt: result.updatedAt
+      }));
+      setEditingOrderId(null);
+      setEditForm(null);
+      showToast("แก้ไขออเดอร์สำเร็จ", "emerald");
+    } catch {
+      showToast("แก้ไขออเดอร์ไม่สำเร็จ", "red");
+    }
   }
 
   function cancelEditOrder() {
@@ -599,11 +756,30 @@ export function OperationsDashboard({ initialData }: { initialData: DashboardSee
     setEditForm(null);
   }
 
-  function deleteOrder(id: number) {
+async function deleteOrder(id: number) {
     if (!confirm("ยืนยันการลบ?")) return;
-    setOrders((current) => current.filter((order) => order.id !== id));
-    if (expandedOrderId === id) setExpandedOrderId(null);
-    showToast("ลบออเดอร์แล้ว", "red");
+    const order = orders.find((o) => o.id === id);
+    if (!order) return;
+
+    try {
+      const url = `/api/order?bookingNumber=${encodeURIComponent(order.booking)}`;
+      const response = await fetch(url, { method: "DELETE" });
+
+      if (response.status === 409) {
+        showToast("ข้อมูลถูกแก้ไขโดยผู้อื่นแล้ว กรุณารีเฟรชหน้า", "red");
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error("delete failed");
+      }
+
+      setOrders((current) => current.filter((o) => o.id !== id));
+      if (expandedOrderId === id) setExpandedOrderId(null);
+      showToast("ลบออเดอร์แล้ว", "red");
+    } catch {
+      showToast("ลบออเดอร์ไม่สำเร็จ", "red");
+    }
   }
 
   function showToast(message: string, type: string = "emerald") {
@@ -612,30 +788,69 @@ export function OperationsDashboard({ initialData }: { initialData: DashboardSee
     setTimeout(() => setToastMessage(""), 3000);
   }
 
-  function handleNewOrderSubmit(event: React.FormEvent<HTMLFormElement>) {
+async function handleNewOrderSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const createdOrder: OrderRecord = {
-      id: orders.length + 1,
-      date: newOrder.date,
-      time: newOrder.time,
-      agent: newOrder.agent || "Direct",
-      booking: newOrder.booking || `BK${Date.now()}`,
-      packet: newOrder.packet,
-      name: newOrder.name || "Guest",
-      phone: newOrder.phone || "-",
-      hotel: newOrder.hotel || "Hotel",
-      room: newOrder.room || "-",
-      join: Number(newOrder.join) || 1,
-      visitor: Number(newOrder.visitor) || 0,
-      driver: "",
-      boarding: "WAITING",
-      assignedStaff: [],
-      adminNote: ""
-    };
+    const submittedBooking = newOrder.booking || `BK${Date.now()}`;
 
-    setOrders((current) => [createdOrder, ...current]);
-    setShowOrderModal(false);
-    showToast("บันทึกออเดอร์สำเร็จ", "emerald");
+    try {
+      const response = await fetch("/api/order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bookingNumber: submittedBooking,
+          serviceDate: newOrder.date,
+          timeSlot: newOrder.time || "00:00",
+          agentName: newOrder.agent || "Direct",
+          customerName: newOrder.name || "Guest",
+          phone: newOrder.phone || "-",
+          hotel: newOrder.hotel || "Hotel",
+          room: newOrder.room || "-",
+          pickupPax: Number(newOrder.join) || 1,
+          joinCount: Number(newOrder.visitor) || 0,
+          productPackageName: newOrder.packet,
+          status: "WAITING"
+        })
+      });
+
+      if (response.status === 409) {
+        showToast("หมายเลขบุคคิดซ้ำ กรุณารีเฟรชหน้า", "red");
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error("create failed");
+      }
+
+      const result = await response.json();
+      const createdOrder: OrderRecord = {
+        id: orders.length + 1,
+        date: newOrder.date,
+        time: newOrder.time,
+        agent: newOrder.agent || "Direct",
+        booking: submittedBooking,
+        packet: newOrder.packet,
+        name: newOrder.name || "Guest",
+        phone: newOrder.phone || "-",
+        hotel: newOrder.hotel || "Hotel",
+        room: newOrder.room || "-",
+        join: Number(newOrder.join) || 1,
+        visitor: Number(newOrder.visitor) || 0,
+        driver: "",
+        driverCode: "",
+        vehicle: "",
+        vehicleCode: "",
+        boarding: "WAITING",
+        assignedStaff: [],
+        adminNote: "",
+        updatedAt: result.updatedAt
+      };
+
+      setOrders((current) => [createdOrder, ...current]);
+      setShowOrderModal(false);
+      showToast("บันทึกออเดอร์สำเร็จ", "emerald");
+    } catch {
+      showToast("บันทึกออเดอร์ไม่สำเร็จ", "red");
+    }
   }
 
   function handleEmployeeSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -707,16 +922,27 @@ export function OperationsDashboard({ initialData }: { initialData: DashboardSee
     setTimeout(() => document.body.classList.remove("print-job-sheet"), 300);
   }
 
+  if (loading) {
+    return (
+      <div className="app-shell" style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "#0f172a", color: "#94a3b8" }}>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: "24px", marginBottom: "8px" }}>ZIPLINE</div>
+          <div style={{ fontSize: "13px", color: "#475569" }}>Loading...</div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="app-shell">
       <aside className="sidebar-nav">
-        {[
+{[
           ["overview", t("nav.overview")],
-          ["orderlist", t("nav.orderlist")],
+          ...((userRole === "ADMIN" || userRole === "ACCOUNTING" || userRole === "MANAGER") ? [["orderlist", t("nav.orderlist")]] : []),
           ["transport", t("nav.transport")],
-          ["staffing", t("nav.staffing")],
-          ["personnel", t("nav.personnel")],
-          ["master", t("nav.master")]
+          ...((userRole === "ADMIN" || userRole === "ACCOUNTING" || userRole === "MANAGER" || userRole === "STAFF") ? [["staffing", t("nav.staffing")]] : []),
+          ...((userRole === "ADMIN" || userRole === "MANAGER") ? [["personnel", t("nav.personnel")]] : []),
+          ...((userRole === "ADMIN" || userRole === "ACCOUNTING" || userRole === "MANAGER") ? [["master", t("nav.master")]] : [])
         ].map(([key, label]) => (
           <button
             className={`sidebar-item ${mainView === key ? "active" : ""}`}
@@ -728,10 +954,26 @@ export function OperationsDashboard({ initialData }: { initialData: DashboardSee
             <span>{label}</span>
           </button>
         ))}
+        {userRole && userRole !== "DRIVER" && (
+          <button
+            className="sidebar-item"
+            onClick={() => logout()}
+            type="button"
+            style={{ marginTop: "auto", color: "#94a3b8", borderTop: "1px solid #1e293b" }}
+          >
+            <span className="sidebar-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                <polyline points="16 17 21 12 16 7"/>
+                <line x1="21" y1="12" x2="9" y2="12"/>
+              </svg>
+            </span>
+            <span>ออกจากระบบ</span>
+          </button>
+        )}
       </aside>
 
       <div className="content-area">
-
       {mainView === "overview" ? (
         <section className="view-section">
           <div className="glass-card">
@@ -904,7 +1146,7 @@ export function OperationsDashboard({ initialData }: { initialData: DashboardSee
                 <p>History Log</p>
               </div>
               <div className="action-group">
-                <button className="primary-button" onClick={() => setShowOrderModal(true)} type="button">
+<button className="primary-button" onClick={() => setShowOrderModal(true)} disabled={userRole === "STAFF" || userRole === "DRIVER"} title={userRole === "STAFF" || userRole === "DRIVER" ? "ไม่มีสิทธิ์เพิ่มรายการ" : ""} type="button">
                   เพิ่มรายการใหม่
                 </button>
                 <div className="export-dropdown-wrap">
@@ -1103,8 +1345,8 @@ export function OperationsDashboard({ initialData }: { initialData: DashboardSee
                                       <span className={`status-badge ${statusClass(order.boarding)}`}>{formatStatus(order.boarding)}</span>
                                     </div>
                                     <div className="detail-actions">
-                                      <button className="indigo-button" onClick={() => startEditOrder(order)} type="button">แก้ไข</button>
-                                      <button className="btn-danger" onClick={() => deleteOrder(order.id)} type="button">ลบ</button>
+<button className="indigo-button" onClick={() => startEditOrder(order)} disabled={userRole === "STAFF" || userRole === "DRIVER"} title={userRole === "STAFF" || userRole === "DRIVER" ? "ไม่มีสิทธิ์แก้ไข" : ""} type="button">แก้ไข</button>
+                                      <button className="btn-danger" onClick={() => deleteOrder(order.id)} disabled={userRole === "STAFF" || userRole === "DRIVER"} title={userRole === "STAFF" || userRole === "DRIVER" ? "ไม่มีสิทธิ์ลบ" : ""} type="button">ลบ</button>
                                     </div>
                                   </div>
                                 </div>
@@ -1143,261 +1385,52 @@ export function OperationsDashboard({ initialData }: { initialData: DashboardSee
             </div>
 
             {transportView === "assign" ? (
-              <div className="table-wrap">
-                <table className="ops-table compact">
-                  <thead className="thead-indigo">
-                    <tr>
-                      <th>รอบ</th>
-                      <th>โรงแรม</th>
-                      <th className="center">Pax</th>
-                      <th>ลูกค้า</th>
-                      <th>คนขับ</th>
-                      <th>Admin Note</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {transportOrders.map((order) => (
-                      <tr key={order.id}>
-                        <td className="slot">{order.time}</td>
-                        <td>{order.hotel}</td>
-                        <td className="center strong-blue">{order.join + order.visitor}</td>
-                        <td>
-                          {order.name}
-                          {order.adminNote ? <span className="subtle-line">Note: {order.adminNote}</span> : null}
-                        </td>
-                        <td>
-                          <select
-                            value={order.driver}
-                            onChange={(event) =>
-                              updateOrder(order.id, (current) => ({ ...current, driver: event.target.value }))
-                            }
-                          >
-                            <option value="">ยังไม่จัด</option>
-                            {driverNames.map((driver) => (
-                              <option key={driver} value={driver}>
-                                {driver}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                        <td>
-                          <input
-                            className="table-input"
-                            placeholder="Note"
-                            value={order.adminNote ?? ""}
-                            onChange={(event) =>
-                              updateOrder(order.id, (current) => ({
-                                ...current,
-                                adminNote: event.target.value
-                              }))
-                            }
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <TransportAssignTable
+                orders={transportOrders}
+                drivers={drivers}
+                vehicles={vehicles}
+                savingOrderId={transportSavingOrderId}
+                onChangeLocalAdminNote={updateOrderAdminNote}
+                onSaveTransport={saveTransportAssignment}
+              />
             ) : null}
 
-            {transportView === "recheck" ? (
-              <>
-                <div className="stats-grid">
-                  <div className="stats-card" onClick={() => setRecheckStatusFilter("ALL")} style={{cursor:"pointer"}}>
-                    <span>ทั้งหมด</span>
-                    <strong>{dayOrders.length}</strong>
-                  </div>
-                  <div className="stats-card" onClick={() => setRecheckStatusFilter("WAITING")} style={{cursor:"pointer"}}>
-                    <span>Waiting</span>
-                    <strong>{dayOrders.filter((order) => order.boarding === "WAITING").length}</strong>
-                  </div>
-                  <div className="stats-card" onClick={() => setRecheckStatusFilter("BOARDED")} style={{cursor:"pointer"}}>
-                    <span>Boarded</span>
-                    <strong>{dayOrders.filter((order) => order.boarding === "BOARDED").length}</strong>
-                  </div>
-                  <div className="stats-card danger" onClick={() => setRecheckStatusFilter("NO_SHOW")} style={{cursor:"pointer"}}>
-                    <span>No Show</span>
-                    <strong>{dayOrders.filter((order) => order.boarding === "NO_SHOW").length}</strong>
-                  </div>
-                </div>
-                <div className="toolbar muted">
-<label>
-                    <span>วันที่</span>
-                    <DatePicker
-                      value={transportDate}
-                      onChange={(v) => setTransportDate(v)}
-                      style={{fontSize:"13px", minWidth:"130px"}}
-                    />
-                  </label>
-                  <label>
-                    <span>คนขับ</span>
-                    <select
-                      onChange={(event) => setRecheckDriverFilter(event.target.value)}
-                      value={recheckDriverFilter}
-                    >
-                      <option value="ALL">ทุกคน</option>
-                      {driversInDay.map((driver) => (
-                        <option key={driver} value={driver}>
-                          {driver}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-                <div className="table-wrap">
-                  <table className="ops-table compact">
-                    <thead className="thead-navy">
-                      <tr>
-                        <th className={`sortable${recheckSortField === "time" ? " sort-active" : ""}`} onClick={() => toggleRecheckSort("time")}>รอบ / คนขับ{recheckSortIcon("time")}</th>
-                        <th className={`sortable${recheckSortField === "hotel" ? " sort-active" : ""}`} onClick={() => toggleRecheckSort("hotel")}>โรงแรม{recheckSortIcon("hotel")}</th>
-                        <th className="center">Pax</th>
-                        <th>ลูกค้า</th>
-                        <th className={`center sortable${recheckSortField === "status" ? " sort-active" : ""}`} onClick={() => toggleRecheckSort("status")}>สถานะ{recheckSortIcon("status")}</th>
-                        <th>Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {recheckOrders.map((order) => (
-                        <tr key={order.id}>
-                          <td>
-                            <strong>{order.time}</strong>
-                            <span className="subtle-line">{order.driver || "ยังไม่จัดรถ"}</span>
-                          </td>
-                          <td>{order.hotel}</td>
-                          <td className="center strong-blue">{order.join + order.visitor}</td>
-                          <td>{order.name}</td>
-                          <td className="center">
-                            <button
-                              className={`status-toggle ${statusClass(order.boarding)}`}
-                              onClick={() =>
-                                updateOrder(order.id, (current) => {
-                                  const states: BookingStatus[] = ["WAITING", "BOARDED", "NO_SHOW"];
-                                  const index = states.indexOf(current.boarding);
-                                  return {
-                                    ...current,
-                                    boarding: states[(index + 1) % states.length]
-                                  };
-                                })
-                              }
-                              type="button"
-                            >
-                              {formatStatus(order.boarding)}
-                            </button>
-                          </td>
-                          <td>
-                            <button
-                              className="danger-button"
-                              onClick={() =>
-                                updateOrder(order.id, (current) => {
-                                  const currentIndex = initialData.timeSlots.indexOf(current.time);
-                                  if (currentIndex >= initialData.timeSlots.length - 1) {
-                                    return current;
-                                  }
-                                  return {
-                                    ...current,
-                                    time: initialData.timeSlots[currentIndex + 1],
-                                    boarding: "WAITING",
-                                    driver: "",
-                                    adminNote: "No Show รอบก่อน"
-                                  };
-                                })
-                              }
-                              type="button"
-                            >
-                              ย้ายรอบรับใหม่
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </>
+{transportView === "recheck" ? (
+              <TransportRecheckTable
+                dayOrders={dayOrders}
+                driversInDay={driversInDay}
+                recheckOrders={recheckOrders}
+                recheckSortField={recheckSortField}
+                recheckSortDir={recheckSortDir}
+                recheckStatusFilter={recheckStatusFilter}
+                recheckDriverFilter={recheckDriverFilter}
+                transportDate={transportDate}
+                drivers={drivers}
+                timeSlots={initialData.timeSlots}
+                onToggleRecheckSort={toggleRecheckSort}
+                onRecheckSortIcon={recheckSortIcon}
+                onSetRecheckStatusFilter={setRecheckStatusFilter}
+                onSetRecheckDriverFilter={setRecheckDriverFilter}
+                onSetTransportDate={setTransportDate}
+                onUpdateOrder={updateOrder}
+                onSavePickupStatus={savePickupStatus}
+              />
             ) : null}
 
-            {transportView === "sheet" ? (
-              <>
-                <div className="selector-grid">
-                  {driverNames.map((driver) => {
-                    const activeSlots = initialData.timeSlots.filter((slot) =>
-                      orders.some(
-                        (order) => order.date === transportDate && order.driver === driver && order.time === slot
-                      )
-                    );
-
-                    return (
-                      <div className="driver-card" key={driver}>
-                        <div className="driver-name">{driver}</div>
-                        <div className="slot-button-wrap">
-                          {activeSlots.length === 0 ? (
-                            <span className="subtle-line">No assignments</span>
-                          ) : (
-                            activeSlots.map((slot) => (
-                              <button
-                                className="slot-button"
-                                key={`${driver}-${slot}`}
-                                onClick={() => {
-                                  setSelectedDriver(driver);
-                                  setSelectedSheetSlot(slot);
-                                }}
-                                type="button"
-                              >
-                                รอบ {slot}
-                              </button>
-                            ))
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-                {selectedDriver && selectedSheetSlot ? (
-                  <div className="job-sheet job-sheet-print-target">
-                    <div className="job-sheet-header">
-                      <div>
-                        <h3>SKYLINE JOB ORDER</h3>
-                        <p>DRIVER: {selectedDriver} | SHIFT: <span>{selectedSheetSlot}</span></p>
-                      </div>
-                      <div className="job-sheet-meta">
-                        <p>DATE: {transportDate}</p>
-                        <button className="black-button no-print" type="button" onClick={printJobSheetOnly}>Print A4</button>
-                      </div>
-                    </div>
-                    <div className="table-wrap job-sheet-table">
-                      <table className="ops-table compact print-table">
-                        <thead>
-                          <tr>
-                            <th>Packet</th>
-                            <th>Agent</th>
-                            <th>Booking</th>
-                            <th>Hotel (Room)</th>
-                            <th className="center">Pax</th>
-                            <th>Name</th>
-                            <th>Phone</th>
-                            <th>Balance</th>
-                            <th>Remark</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {selectedDriverOrders.map((order) => (
-                            <tr key={order.id}>
-                              <td>{order.packet}</td>
-                              <td>{order.agent}</td>
-                              <td className="mono">{order.booking}</td>
-                              <td><strong>{order.hotel}</strong> (Rm:{order.room})</td>
-                              <td className="center"><strong>{order.join + order.visitor}</strong></td>
-                              <td>{order.name}</td>
-                              <td>{order.phone}</td>
-                              <td />
-                              <td />
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                ) : null}
-              </>
+{transportView === "sheet" ? (
+              <TransportSheetView
+                driverNames={driverNames}
+                orders={orders}
+                transportDate={transportDate}
+                timeSlots={initialData.timeSlots}
+                selectedDriver={selectedDriver}
+                selectedSheetSlot={selectedSheetSlot}
+                onSelectDriverAndSlot={(driver, slot) => {
+                  setSelectedDriver(driver);
+                  setSelectedSheetSlot(slot);
+                }}
+                onPrint={printJobSheetOnly}
+              />
             ) : null}
           </div>
         </section>
@@ -1423,99 +1456,20 @@ export function OperationsDashboard({ initialData }: { initialData: DashboardSee
               ))}
             </div>
 
-            {staffingView === "setup" ? (
-              <>
-                <div className="toolbar warning">
-                  <DatePicker
-                    value={staffDate}
-                    onChange={(v) => setStaffDate(v)}
-                    style={{fontSize:"13px"}}
-                  />
-                  <select onChange={(event) => setStaffTime(event.target.value)} value={staffTime}>
-                    <option value="ALL">ทุกรอบ</option>
-                    {initialData.timeSlots.map((slot) => (
-                      <option key={slot} value={slot}>
-                        {slot}
-                      </option>
-                    ))}
-                  </select>
-                  <select onChange={(event) => setStaffPacket(event.target.value)} value={staffPacket}>
-                    <option value="ALL">ทุก Package</option>
-                    {packetsInDay.map((packet) => (
-                      <option key={packet} value={packet}>
-                        {packet}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="table-wrap">
-                  <table className="ops-table compact">
-                    <thead className="thead-orange">
-                      <tr>
-                        <th>รอบ</th>
-                        <th>Packet / Booking</th>
-                        <th>ลูกค้า</th>
-                        <th className="center">Join (คนเล่น)</th>
-                        <th>เลือกไกด์ (&gt;= 2 คน)</th>
-                        <th className="center">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {staffingOrders.map((order) => (
-                        <tr className={order.boarding === "NO_SHOW" ? "faded-row" : ""} key={order.id}>
-                          <td className="slot warning-text">{order.time}</td>
-                          <td>
-                            <strong>{order.packet}</strong>
-                            <span className="subtle-line">{order.booking}</span>
-                          </td>
-                          <td className="strong">{order.name}</td>
-                          <td className="center strong-green">{order.join}</td>
-                          <td>
-                            <div className="checkbox-grid">
-                              {staffMembers.map((staff) => {
-                                const checked = order.assignedStaff.includes(staff.name);
-                                return (
-                                  <label className="check-pill" key={`${order.id}-${staff.id}`}>
-                                    <input
-                                      checked={checked}
-                                      disabled={order.boarding === "NO_SHOW"}
-                                      onChange={() =>
-                                        updateOrder(order.id, (current) => ({
-                                          ...current,
-                                          assignedStaff: checked
-                                            ? current.assignedStaff.filter((name) => name !== staff.name)
-                                            : [...current.assignedStaff, staff.name]
-                                        }))
-                                      }
-                                      type="checkbox"
-                                    />
-                                    <span>{staff.name.split(" ")[0]}</span>
-                                  </label>
-                                );
-                              })}
-                            </div>
-                          </td>
-                          <td className="center">
-                            <span
-                              className={
-                                order.assignedStaff.length >= 2
-                                  ? "assignment-badge ready"
-                                  : "assignment-badge pending"
-                              }
-                            >
-                              {order.assignedStaff.length >= 2
-                                ? "READY"
-                                : order.assignedStaff.length === 1
-                                  ? "NEED +1"
-                                  : "NEED 2 STAFF"}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </>
+{staffingView === "setup" ? (
+              <StaffingSetupTable
+                staffDate={staffDate}
+                staffTime={staffTime}
+                staffPacket={staffPacket}
+                staffingOrders={staffingOrders}
+                staffMembers={staffMembers}
+                initialData={initialData}
+                onStaffDateChange={setStaffDate}
+                onStaffTimeChange={setStaffTime}
+                onStaffPacketChange={setStaffPacket}
+                updateOrder={updateOrder}
+                saveStaffAssignment={saveStaffAssignment}
+              />
             ) : null}
 
             {staffingView === "board" ? (

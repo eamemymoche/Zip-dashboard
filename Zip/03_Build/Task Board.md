@@ -14,7 +14,7 @@
 
 ## In Progress
 
-- [ ] Turn dashboard seed state into real Prisma reads and writes.
+- [ ] Real PostgreSQL migration not yet applied: three migration files exist (vehicle, employee fields, auth+concurrency) but have not been run against a live DB in this environment
 
 ## Done
 
@@ -44,6 +44,83 @@
 - [x] Add toast notification system (showMessage).
 - [x] Add sortUnassigned button to transport assign.
 - [x] Add Export All and Excel export buttons with toast feedback.
+- [x] Create AI-agent operating manual and linked implementation handbook notes in Obsidian.
+- [x] Document real workflow from source evidence: Klook, Trip.com, Ticket2Attraction, whiteboards, spreadsheet, and job sheet samples.
+- [x] Document small-business roles and permissions model.
+- [x] Document SQL migration strategy with vehicle selection as a first-class transport resource.
+- [x] Document backup, recovery, and versioning policy for AI-agent and data rollback.
+- [x] Document security and multi-user guardrails for future persisted workflows.
+- [x] Document durable improvements and premium roadmap.
+- [x] Split Transport > Assign into its own component with a documented ownership boundary.
+- [x] Persist Transport > Assign using stable `driverCode` and `vehicleCode` identifiers.
+- [x] Add vehicle seed/master fallback and DB-to-dashboard vehicle mapping.
+- [x] Add transport assignment audit logging on assignment / reassignment / unassignment / note-only save.
+- [x] Add module split guidance note for future AI agents.
+- [x] Create reusable agent master prompt, review prompt, and ordered work queue in Obsidian.
+- [x] **Task 1:** Prisma migration for Vehicle model and TransportAssignment.vehicleId — migration file created at `packages/db/prisma/migrations/20260514000000_init_vehicle_transport/migration.sql`. Schema, seed, loader, and transport-assignment API were already aligned from prior work. Migration is idempotent (IF NOT EXISTS guards). Cannot be run in this environment (no PostgreSQL instance).
+- [x] **Task 2:** Align Employee DB schema with UI-required fields — added `nickname`, `phone`, `phone2`, `startDate`, `photo` to `Employee` model in schema.prisma. Created migration `20260514000001_add_employee_fields`. Updated seed to include all new fields. Loader no longer fabricates `nickname` from name split. Personnel reads are now structurally honest. Cannot be run in this environment (no PostgreSQL instance).
+- [x] **Task 3:** Split Transport Recheck into its own component — created `transport-recheck-table.tsx` with all Recheck table rendering, stats cards, filters, status-toggle, and move-round action. `operations-dashboard.tsx` now passes callbacks as props. No persistence logic in the component. Updated `Module Ownership and Split Guide.md`.
+- [x] **Task 4:** Split Transport Sheet into its own component — created `transport-sheet-view.tsx` with driver slot selector and printable job sheet. Extracted `selectedDriverOrders` computation into the component. Dashboard passes `orders`, `driverNames`, `timeSlots`, and callbacks. No persistence introduced. Updated `Module Ownership and Split Guide.md`.
+- [x] **Task 5:** Persist pickup status event history — created `api/pickup-status/route.ts` that appends `PickupStatusEvent` records on both status-toggle and move-round actions. `TransportRecheckTable` accepts optional `onSavePickupStatus` prop; dashboard passes `savePickupStatus` which calls the API silently (non-blocking). Audit log written for each event. Schema already had `PickupStatusEvent` model; no migration needed. Booking.status still owned by local state for display.
+- [x] **Task 6:** Persist staffing assignments — created `api/staff-assignment/route.ts` that syncs all staff IDs for a booking (replace strategy, wrapped in `$transaction`). Dashboard's `saveStaffAssignment` fires on each checkbox toggle (non-blocking). Audit log written. No schema changes — `StaffAssignment` model already existed. Staffing board still derives from local state; DB is write-only for assignments. Bugfix: resolved `current` variable reference error in staffing checkbox handler.
+- [x] **Task 7:** Add session-based auth with login, logout, and proxy gate — `UserRole` enum added to schema, `passwordHash` added to `User`, auth API created at `api/auth/login` (POST/GET/DELETE), `proxy.ts` gates all non-public paths with redirect to `/login` on failure (renamed from `middleware.ts` to follow Next.js 16 convention; uses Node.js crypto, no Edge Runtime crypto warning), login page created at `login/page.tsx` with redirect on success, `AuthProvider` + `useAuth` context created in `lib/auth/auth-context.tsx`, `Providers` wrapper added to `layout.tsx`. **Dev auth fallback**: when DB is unavailable, the login API falls back to hardcoded dev users (`officer@zipline.com/zipline123`, `owner@zipline.com/owner123`, `accounting@zipline.com/accounting123`) with `dev-xxx-001` IDs and MANAGER/ADMIN/ACCOUNTING roles. This is clearly marked as local-dev-only fallback and is NOT production auth. Session token: HMAC-SHA256 signed, Base64url-encoded `{userId:role:timestamp}`, 8-hour expiry, httpOnly cookie `zcc_session`. **Role gating now active in UI**: Personnel nav hidden from STAFF/DRIVER; "เพิ่มรายการใหม่" button disabled for STAFF/DRIVER; Edit/Delete buttons disabled for STAFF/DRIVER in expanded order rows. GET session endpoint returns 200 (not 401) when no session — allows `AuthProvider` to handle loading state gracefully.
+- [x] **Task 8:** Add optimistic concurrency guards fully wired through UI — `transport-assignment` (409 on `Booking.updatedAt` mismatch), `pickup-status` (409 on mismatch), `staff-assignment` (409 on mismatch). All three APIs return `updatedAt` in response body. **Client now sends `updatedAt`** with every write: `saveTransportAssignment` sends `order.updatedAt`, `saveStaffAssignment` sends `order.updatedAt`, `savePickupStatus` sends `order.updatedAt`. **Client refreshes local `updatedAt`** after successful writes via `updateOrder(id, (o) => ({ ...o, updatedAt: result.updatedAt }))`. **409 conflicts are visible**: on 409, each function shows a toast "ข้อมูลถูกแก้ไขโดยผู้อื่นแล้ว กรุณารีเฟรชหน้า" (Thai: "Data was modified by another user, please refresh the page") and does not silently swallow the error. `OrderRecord` type now has optional `updatedAt: number` field. `load-dashboard-data.ts` loads `updatedAt` from `Booking.updatedAt` and `staffAssignments` via JOIN. `TransportRecheckTable` passes the full `order` object to `onSavePickupStatus` so the order's `updatedAt` is available. **Canonical token**: Every successful write in all three APIs explicitly calls `prisma.booking.update({ where: { id: booking.id }, data: {}, select: { updatedAt: true } })` to force-refresh `Booking.updatedAt` and returns the new server-side timestamp. This ensures the token always advances after a write, making the optimistic concurrency cycle reliable.
+- [x] **Task 9:** Persist Order create/edit/delete to DB — created `/api/order/route.ts` with POST (create), PUT (edit), DELETE endpoints. POST accepts `bookingNumber`, `serviceDate`, `timeSlot`, `agentName`, `customerName`, `phone`, `hotel`, `room`, `pickupPax`, `joinCount`, `productPackageName`, `status`; creates `Booking` record; returns `{ id, bookingNumber, updatedAt }`. PUT accepts same fields plus `updatedAt` for concurrency guard; returns 409 on conflict. DELETE accepts `bookingNumber` via query param; returns 409 on conflict. All three write to `Booking` table directly (no ORM-level update of `Booking.updatedAt` — explicit `prisma.booking.update({ where: { id }, data: {}, select: { updatedAt: true } })` called after every write). Audit log written on PUT and DELETE. Dashboard wired: `handleNewOrderSubmit` → POST `/api/order`, `saveEditOrder` → PUT `/api/order`, `deleteOrder` → DELETE `/api/order`. All three wrap in try/catch with 409 toast on conflict. `OrderRecord` in `ops-data.ts` has `updatedAt?: number`. Build passes clean.
+- [x] **Task 10:** Split Staffing Setup into own component — created `staffing-setup-table.tsx` containing all Staffing > Setup rendering (date/time/packet filter toolbar, orders table with staff checkbox grid, status badges). Props: `staffDate`, `staffTime`, `staffPacket`, `staffingOrders`, `staffMembers`, `initialData`, `onStaffDateChange`, `onStaffTimeChange`, `onStaffPacketChange`, `updateOrder`, `saveStaffAssignment`. Uses `DatePicker` from `./date-picker`. Dashboard imports `StaffingSetupTable` and renders it inside `{staffingView === "setup" ? ... : null}`. No persistence logic in the component; callbacks delegate to parent. Build passes clean.
+- [x] **2026-05-15 Auth UX Fixes:** Fixed four auth UX issues: (1) `logout()` now redirects to `/login` directly via `window.location.href` after DELETE API call. (2) Logout button moved from top-right content header to sidebar bottom with logout SVG icon, `marginTop: "auto"`. Top-right user info strip removed. (3) Added `zcc_role` cookie alongside `zcc_session` — login API sets it on POST, proxy reads it synchronously and injects into `x-user-role` headers, so role is available immediately on first render fixing Personnel nav visibility. DELETE clears both cookies. (4) Login panel now has password show/hide eye toggle and a 3-row credentials table (Role | Email | Password) replacing the single-line dev hint. Build passes clean.
+
+## 2026-05-15 Next Execution Plan
+
+### Current stable baseline
+
+- [x] `npm.cmd run build` currently passes after Task 7-8 follow-up fixes.
+- [x] Local dev login fallback exists for `officer`, `owner`, and `accounting`.
+- [x] Proxy-based auth gate is active.
+- [x] Optimistic concurrency is wired through transport assignment, pickup status, and staffing assignment write paths.
+
+### Current known follow-up
+
+- [ ] Real PostgreSQL migration not yet applied — no DB instance available in this environment
+
+## 2026-05-16 Next Recommended Phase
+
+### Primary next tasks
+
+- [ ] **Task 14:** Prepare the real PostgreSQL rollout package: make migration status, backup steps, seed behavior, smoke test, and rollback instructions fully current and consistent across Obsidian.
+- [ ] **Task 15:** Apply existing Prisma migrations to the real PostgreSQL target only after backup confirmation.
+- [ ] **Task 16:** Run live DB smoke verification for login, Order CRUD, transport assignment, pickup status, and staffing assignment.
+
+### Secondary task
+
+- [ ] **Task 17:** Split Staffing Board only if `operations-dashboard.tsx` still feels too heavy after the live DB rollout.
+
+### Explicit not-priority-right-now
+
+- [ ] Do not deepen roles/permissions unless a real business need appears.
+- [ ] Do not redesign auth/session architecture in this phase.
+- [ ] Do not start broad UI refactors while the first real DB rollout is still pending.
+
+### Ordered next tasks after auth hydration
+
+- [x] ~~**Task 9:** Persist Order create/edit/delete to DB while preserving current Order List UI and fallback behavior.~~
+- [x] ~~**Task 10:** Split Staffing Setup into its own component to reduce pressure on `operations-dashboard.tsx`.~~
+- [x] **Task 11:** Staffing read path verified — no new code required. `load-dashboard-data.ts` already loads `staffAssignments` via JOIN with `employee` and maps to `assignedStaff[]` in `OrderRecord`. All three staffing views (Setup/Board/KPI) derive from `orders` state populated by the loader. No separate write-only path exists. Residual fallback: when `DATABASE_URL` is absent, loader returns seed data with `assignedStaff` generated from seed (consistent behavior, no gap).
+- [x] **Task 12:** Migration status verified — no new migrations needed. Schema covers all current implementation. Three migration files exist with idempotent guards. `npx prisma validate` ✓ and `npx prisma generate` ✓. Migration files are created but NOT applied to a live DB (no PostgreSQL instance available in this environment). Production migration requires DB backup before applying per [[Backup Recovery and Versioning]].
+- [x] **Task 13:** Route-level role enforcement — implemented server-side API guards (403 on insufficient role) for Order CRUD, transport-assignment, pickup-status, and staff-assignment APIs; proxy-level route guard for `/personnel` (ADMIN/MANAGER only); client-side sidebar nav filtered by role using explicit role conditionals. Dashboard is single-page SPA at `/`; proxy cannot enforce per-module visibility for main views — client-side nav filtering is the enforced layer. New `lib/auth/role-guards.ts` shared utility. Build passes clean.
+
+### Concurrency / multi-agent caution
+
+- [ ] Do not assign two agents to `operations-dashboard.tsx` at the same time.
+- [ ] Do not combine Order CRUD persistence with Staffing split in one task.
+- [ ] Do not combine auth hydration cleanup with broader role-system redesign.
+- [ ] Any task that changes behavior must update Obsidian notes in the same pass.
+
+### Done criteria for the next phase
+
+- [x] Auth state is visually stable after login/logout. (Verified: `zcc_role` cookie, sidebar logout, loading gate)
+- [x] Order CRUD survives reload against DB path. (Verified in code: `handleNewOrderSubmit` → POST `/api/order`, `saveEditOrder` → PUT `/api/order`, `deleteOrder` → DELETE `/api/order`; API routes exist and build passes. Not yet end-to-end tested against live PostgreSQL.)
+- [x] Staffing screens read from the same persisted assignment source of truth they write to. (Verified in code: loader loads `staffAssignments` via JOIN; all three staffing views derive from `orders` state. Not yet end-to-end tested against live PostgreSQL.)
+- [ ] Real PostgreSQL migration is applied only after backup confirmation. (Pending — migration files exist but not applied to a live DB in this environment)
 
 ## Phase 2 - UI/UX Polish & Features ✅
 

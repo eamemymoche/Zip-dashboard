@@ -2,19 +2,38 @@
 
 Status: Phase 6 complete — strict layout width fix, overview agent duplicate removed, date range picker with quick filters, PDF dynamic import fixed, Edit/Delete row buttons added, dark mode contrast improved
 Source: [[ChatGPT Share Capture]]
-Last updated: 2026-05-13
+Last updated: 2026-05-14
 
 ## Next Actions
 
 - [ ] Replace dashboard seed data with Prisma-backed queries and writes.
+- [ ] Implement the documented SQL migration path and preserve dashboard compatibility during rollout.
+- [ ] Add transport persistence for driver + vehicle assignment.
+- [ ] Introduce the documented small-business auth and permission model.
 
 ## Core Notes
 
 - [[Project Brief]]
+- [[AI Agent Operating Manual]]
 - [[Requirements]]
 - [[Build Plan]]
 - [[Task Board]]
 - [[Decision Log]]
+
+## Agent Handbook
+
+- [[AI Agent Operating Manual]]
+- [[Real Workflow Model]]
+- [[Staffing Operations Model]]
+- [[SQL Architecture Strategy]]
+- [[Backup Recovery and Versioning]]
+- [[Roles and Permissions]]
+- [[Security and Multi-User Guardrails]]
+- [[Durable Improvements and Premium Roadmap]]
+- [[Module Ownership and Split Guide]]
+- [[Agent Command Template]]
+- [[Agent Work Queue]]
+- [[Agent Review Template]]
 
 ## Build Readiness
 

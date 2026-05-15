@@ -1,0 +1,107 @@
+import { NextRequest, NextResponse } from "next/server";
+import { ALLOWED_ROLES_PICKUP_WRITE } from "../../../lib/auth/role-guards";
+
+async function getPrisma() {
+  const prismaImport = await import("@prisma/client");
+  const PrismaClientCtor =
+    (prismaImport as { PrismaClient?: new () => any }).PrismaClient ??
+    (prismaImport as { default?: { PrismaClient?: new () => any } }).default?.PrismaClient;
+
+  if (!PrismaClientCtor) {
+    throw new Error("Prisma client unavailable");
+  }
+
+  return new PrismaClientCtor();
+}
+
+function getRole(request: NextRequest): string | null {
+  return request.headers.get("x-user-role");
+}
+
+function roleGuard(role: string | null, allowed: string[]): NextResponse | null {
+  if (!role || !allowed.includes(role)) {
+    return new NextResponse(JSON.stringify({ error: "Insufficient permissions" }), {
+      status: 403,
+      headers: { "Content-Type": "application/json" }
+    });
+  }
+  return null;
+}
+
+export async function POST(request: NextRequest) {
+  const role = getRole(request);
+  const denied = roleGuard(role, ALLOWED_ROLES_PICKUP_WRITE);
+  if (denied) return denied;
+  const prisma = await getPrisma();
+  try {
+    const body = await request.json();
+    const { bookingNumber, status, note, updatedAt } = body;
+
+    if (!bookingNumber || !status) {
+      return NextResponse.json(
+        { error: "bookingNumber and status are required" },
+        { status: 400 }
+      );
+    }
+
+    const booking = await prisma.booking.findUnique({
+      where: { bookingNumber }
+    });
+
+    if (!booking) {
+      return NextResponse.json({ error: "Booking not found" }, { status: 404 });
+    }
+
+    if (updatedAt) {
+      const bookingUpdatedAt = booking.updatedAt.getTime();
+      if (Math.abs(bookingUpdatedAt - updatedAt) > 1000) {
+        return NextResponse.json(
+          { error: "Conflict: booking was modified by another user. Please refresh and try again." },
+          { status: 409 }
+        );
+      }
+    }
+
+    const previousEvents = await prisma.pickupStatusEvent.findMany({
+      where: { bookingId: booking.id },
+      orderBy: { createdAt: "desc" },
+      take: 1
+    });
+    const previousStatus = previousEvents[0]?.status ?? null;
+
+    const event = await prisma.pickupStatusEvent.create({
+      data: {
+        bookingId: booking.id,
+        status,
+        note: note ?? null,
+        createdBy: null
+      }
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        entityType: "PickupStatusEvent",
+        entityId: event.id,
+        action: "pickup.status_changed",
+        beforeJson: JSON.stringify({ status: previousStatus }),
+        afterJson: JSON.stringify({ status })
+      }
+    });
+
+    const refreshedBooking = await prisma.booking.update({
+      where: { id: booking.id },
+      data: {},
+      select: { updatedAt: true }
+    });
+
+    return NextResponse.json({ id: event.id, status: event.status, updatedAt: refreshedBooking.updatedAt.getTime() }, { status: 201 });
+  } catch (error) {
+    console.error("Pickup status error:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
+  } finally {
+    await prisma.$disconnect();
+  }
+}

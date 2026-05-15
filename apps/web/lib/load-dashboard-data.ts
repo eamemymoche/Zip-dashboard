@@ -19,20 +19,25 @@ export async function loadDashboardData(): Promise<DashboardSeed> {
 
     const prisma = new PrismaClientCtor();
 
-    const [bookings, employees, productPackages] = await Promise.all([
+    const [bookings, employees, productPackages, vehicles] = await Promise.all([
       prisma.booking.findMany({
         include: {
           productPackage: true,
           transportAssignment: {
             include: {
-              driver: true
+              driver: true,
+              vehicle: true
             }
+          },
+          staffAssignments: {
+            include: { employee: true }
           }
         },
         orderBy: [{ serviceDate: "asc" }, { timeSlot: "asc" }]
       }),
       prisma.employee.findMany({ orderBy: { code: "asc" } }),
-      prisma.productPackage.findMany({ orderBy: { name: "asc" } })
+      prisma.productPackage.findMany({ orderBy: { name: "asc" } }),
+      prisma.vehicle.findMany({ orderBy: { code: "asc" } })
     ]);
 
     await prisma.$disconnect();
@@ -50,8 +55,15 @@ export async function loadDashboardData(): Promise<DashboardSeed> {
         role: employee.role === "DRIVER" ? "Driver" : "Staff",
         phone: employee.phone ?? "",
         phone2: employee.phone2 ?? "",
-        startDate: employee.startDate ?? "",
+        startDate: employee.startDate ? new Date(employee.startDate).toISOString().slice(0, 10) : "",
         photo: employee.photo ?? ""
+      })),
+      vehicles: vehicles.map((vehicle: any) => ({
+        code: vehicle.code,
+        type: vehicle.type ?? "",
+        capacity: vehicle.capacity ?? null,
+        active: vehicle.active,
+        notes: vehicle.notes ?? ""
       })),
       productPackets: productPackages.map((packet: any) => ({
         name: packet.name,
@@ -71,9 +83,13 @@ export async function loadDashboardData(): Promise<DashboardSeed> {
         join: booking.joinCount,
         visitor: Math.max(booking.pickupPax - booking.joinCount, 0),
         driver: booking.transportAssignment?.driver?.name ?? "",
+        driverCode: booking.transportAssignment?.driver?.code ?? "",
+        vehicle: booking.transportAssignment?.vehicle?.code ?? "",
+        vehicleCode: booking.transportAssignment?.vehicle?.code ?? "",
         boarding: booking.status,
-        assignedStaff: [],
-        adminNote: booking.adminNote ?? ""
+        assignedStaff: booking.staffAssignments?.map((s: any) => s.employee?.name).filter(Boolean) ?? [],
+        adminNote: booking.adminNote ?? "",
+        updatedAt: booking.updatedAt ? new Date(booking.updatedAt).getTime() : undefined
       }))
     };
   } catch {

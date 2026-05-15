@@ -2,6 +2,12 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
+function hashPassword(password) {
+  const { createHash } = require("crypto");
+  const SESSION_SECRET = process.env.SESSION_SECRET ?? "dev-secret-change-in-production";
+  return createHash("sha256").update(password + SESSION_SECRET).digest("hex");
+}
+
 const productPackages = [
   { name: "Extreme", detail: "Z38 + Luge + Swing + Transport", active: true },
   { name: "Express", detail: "Z38 + Swing + Transport", active: true },
@@ -12,12 +18,18 @@ const productPackages = [
 ];
 
 const employees = [
-  { code: "C001", name: "วิชัย รถซิ่ง", role: "DRIVER", active: true },
-  { code: "C002", name: "นิพนธ์ ปลอดภัย", role: "DRIVER", active: true },
-  { code: "C003", name: "สมชาย รอบเช้า", role: "DRIVER", active: true },
-  { code: "G001", name: "มานะ ขยันงาน", role: "STAFF", active: true },
-  { code: "G002", name: "ปรีชา กล้าหาญ", role: "STAFF", active: true },
-  { code: "G003", name: "รัตนา สายสวย", role: "STAFF", active: true }
+  { code: "C001", name: "วิชัย รถซิ่ง", nickname: "วิ๊ก", role: "DRIVER", phone: "089-222-2001", phone2: "086-222-2001", startDate: new Date("2023-11-01"), photo: "https://i.pravatar.cc/150?img=5", active: true },
+  { code: "C002", name: "นิพนธ์ ปลอดภัย", nickname: "นิพ", role: "DRIVER", phone: "089-222-2002", phone2: "086-222-2002", startDate: new Date("2023-12-15"), photo: "https://i.pravatar.cc/150?img=6", active: true },
+  { code: "C003", name: "สมชาย รอบเช้า", nickname: "ชาย", role: "DRIVER", phone: "089-222-2003", phone2: "086-222-2003", startDate: new Date("2024-01-08"), photo: "https://i.pravatar.cc/150?img=7", active: true },
+  { code: "G001", name: "มานะ ขยันงาน", nickname: "มานะ", role: "STAFF", phone: "089-111-1001", phone2: "086-111-1001", startDate: new Date("2024-01-15"), photo: "https://i.pravatar.cc/150?img=1", active: true },
+  { code: "G002", name: "ปรีชา กล้าหาญ", nickname: "ปรี้", role: "STAFF", phone: "089-111-1002", phone2: "086-111-1002", startDate: new Date("2024-02-20"), photo: "https://i.pravatar.cc/150?img=2", active: true },
+  { code: "G003", name: "รัตนา สายสวย", nickname: "สาย", role: "STAFF", phone: "089-111-1003", phone2: "086-111-1003", startDate: new Date("2024-03-10"), photo: "https://i.pravatar.cc/150?img=3", active: true }
+];
+
+const vehicles = [
+  { code: "V001", type: "Van", capacity: 10, active: true, notes: "Primary morning shuttle" },
+  { code: "V002", type: "Van", capacity: 10, active: true, notes: "Flexible backup van" },
+  { code: "V003", type: "Car", capacity: 4, active: true, notes: "Light load / VIP fallback" }
 ];
 
 const bookings = [
@@ -35,14 +47,15 @@ const bookings = [
     status: "BOARDED",
     adminNote: "",
     packageName: "Extreme",
-    driverCode: "C001"
+    driverCode: "C001",
+    vehicleCode: "V001"
   },
   {
     bookingNumber: "BK1001282",
     serviceDate: new Date("2026-05-12T00:00:00.000Z"),
     timeSlot: "07:00",
     agentName: "Trip.com",
-    customerName: "พิมพ์ชนก อ่อนหวาน",
+    customerName: "พิมพันชก อ่อนหวาน",
     phone: "0822211144",
     hotel: "Lagoon Suites",
     room: "112",
@@ -51,7 +64,8 @@ const bookings = [
     status: "WAITING",
     adminNote: "VIP pickup",
     packageName: "Express",
-    driverCode: "C002"
+    driverCode: "C002",
+    vehicleCode: "V002"
   },
   {
     bookingNumber: "BK1001283",
@@ -67,7 +81,8 @@ const bookings = [
     status: "BOARDED",
     adminNote: "",
     packageName: "Gold Zipline",
-    driverCode: "C003"
+    driverCode: "C003",
+    vehicleCode: "V003"
   },
   {
     bookingNumber: "BK1001285",
@@ -83,7 +98,8 @@ const bookings = [
     status: "WAITING",
     adminNote: "",
     packageName: "Silver Zipline",
-    driverCode: "C001"
+    driverCode: "C001",
+    vehicleCode: "V001"
   },
   {
     bookingNumber: "BK1001286",
@@ -99,8 +115,15 @@ const bookings = [
     status: "NO_SHOW",
     adminNote: "ลูกค้ายังไม่ลงมา",
     packageName: "Fast Track",
-    driverCode: "C002"
+    driverCode: "C002",
+    vehicleCode: "V002"
   }
+];
+
+const users = [
+  { email: "officer@zipline.com", displayName: "Officer User", role: "MANAGER", password: "zipline123" },
+  { email: "owner@zipline.com", displayName: "Owner User", role: "ADMIN", password: "owner123" },
+  { email: "accounting@zipline.com", displayName: "Accounting User", role: "ACCOUNTING", password: "accounting123" }
 ];
 
 async function main() {
@@ -120,12 +143,23 @@ async function main() {
     });
   }
 
+  for (const vehicle of vehicles) {
+    await prisma.vehicle.upsert({
+      where: { code: vehicle.code },
+      update: vehicle,
+      create: vehicle
+    });
+  }
+
   for (const booking of bookings) {
     const productPackage = await prisma.productPackage.findFirstOrThrow({
       where: { name: booking.packageName }
     });
     const driver = await prisma.employee.findUnique({
       where: { code: booking.driverCode }
+    });
+    const vehicle = await prisma.vehicle.findUnique({
+      where: { code: booking.vehicleCode }
     });
 
     const createdBooking = await prisma.booking.upsert({
@@ -165,11 +199,13 @@ async function main() {
       await prisma.transportAssignment.upsert({
         where: { bookingId: createdBooking.id },
         update: {
-          driverId: driver.id
+          driverId: driver.id,
+          vehicleId: vehicle?.id
         },
         create: {
           bookingId: createdBooking.id,
-          driverId: driver.id
+          driverId: driver.id,
+          vehicleId: vehicle?.id
         }
       });
     }
@@ -179,6 +215,19 @@ async function main() {
         bookingId: createdBooking.id,
         status: booking.status,
         note: booking.adminNote
+      }
+    });
+  }
+
+  for (const user of users) {
+    await prisma.user.upsert({
+      where: { email: user.email },
+      update: { displayName: user.displayName, role: user.role },
+      create: {
+        email: user.email,
+        displayName: user.displayName,
+        role: user.role,
+        passwordHash: hashPassword(user.password)
       }
     });
   }

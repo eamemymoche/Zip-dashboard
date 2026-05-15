@@ -1,42 +1,95 @@
 # Zipline Command Center
 
-แดชบอร์ดปฏิบัติการ (ภาษาไทย) สำหรับงานรายการออเดอร์, จัดรถ, ใบงานคนขับ, staffing และ master data
+Internal operations dashboard for Zipline booking intake, transport assignment, staffing, driver sheets, and master-data workflows.
 
-## Demo Live
-https://zip-dashboard-web-eight.vercel.app/
+## Live demo
 
-## โครงสร้างหลัก
+- [Vercel demo](https://zip-dashboard-web-eight.vercel.app/)
 
-- `apps/web` - Next.js frontend
-- `packages/db` - Prisma schema + database scripts
-- `Zip` - Obsidian vault (project brain / task log)
+## Current phase
 
-## สถานะข้อมูล (สำคัญ)
+This repo is in a solid internal-alpha phase.
 
-- มี **Prisma + PostgreSQL schema** แล้ว (`packages/db/prisma/schema.prisma`)
-- หน้าเว็บโหลดข้อมูลผ่าน `load-dashboard-data.ts`
-  - ถ้ามี `DATABASE_URL` และ query ได้ -> ดึงจาก DB
-  - ถ้าไม่มี/ต่อ DB ไม่ได้ -> ใช้ fallback seed ในหน่วยความจำ
-- ตอนนี้การแก้ไขบนหน้า dashboard หลายจุดยังเป็น client state (ยังไม่ persist ทุก workflow)
+What is already in place:
 
-## รันโปรเจกต์
+- Next.js dashboard under `apps/web`
+- Prisma/PostgreSQL schema under `packages/db/prisma`
+- fallback dashboard seed mode when `DATABASE_URL` is unavailable
+- session login with local dev fallback accounts
+- server-side write guards for Order CRUD, transport assignment, pickup status, and staffing assignment
+- optimistic concurrency guards on key write paths
+- Obsidian project vault under `Zip/` for workflow, decisions, and agent guidance
+
+What is not yet fully complete:
+
+- Prisma migrations have been created but not yet applied to a real PostgreSQL database in this workspace
+- end-to-end live DB verification has not yet been completed
+- route/module permissions are intentionally lightweight and may be refined later if the business needs them
+
+## Project structure
+
+- `apps/web` - Next.js application
+- `packages/db` - Prisma schema, migrations, and seed script
+- `Zip` - Obsidian vault for planning, workflow notes, task tracking, and AI-agent operating docs
+
+## Local development
 
 ```powershell
 npm install
 npm run dev
 ```
 
-## คำสั่ง DB ที่ใช้บ่อย
+Default local URL:
+
+- `http://127.0.0.1:3000/`
+
+## Local login fallback
+
+When no working PostgreSQL-backed auth is available, these local dev accounts can be used:
+
+- `officer@zipline.com` / `zipline123`
+- `owner@zipline.com` / `owner123`
+- `accounting@zipline.com` / `accounting123`
+
+This fallback is for local development only. It is not production auth.
+
+## Database commands
 
 ```powershell
 npm run db:generate
 npm run db:seed
 ```
 
-> ต้องตั้งค่า `DATABASE_URL` ก่อน seed/migrate
+If you are using a real database, set `DATABASE_URL` first.
 
-## Deploy demo (แนะนำ)
+## PostgreSQL rollout status
 
-- ใช้ GitHub + Vercel
-- push repo ขึ้น GitHub แล้ว import project ใน Vercel
-- ตั้งค่า env (`DATABASE_URL`, อื่นๆที่ต้องใช้) แล้ว deploy
+Verified in code/build:
+
+- schema validates
+- Prisma client generates
+- migration files exist
+- app builds successfully
+
+Not yet verified in this workspace:
+
+- migrations applied to a live PostgreSQL instance
+- smoke-tested end-to-end persistence against a real DB
+
+The rollout checklist and rollback notes live in:
+
+- `Zip/03_Build/Backup Recovery and Versioning.md`
+
+## GitHub / deploy notes
+
+Before pushing:
+
+- make sure no `.env`, `.env.local`, API keys, or production secrets are included
+- review changed Obsidian notes so project status is truthful
+- keep `*.tsbuildinfo` and other local build artifacts out of commits
+
+For Vercel:
+
+- connect the GitHub repo
+- add required environment variables
+- if using Prisma in deploy, ensure the build step runs `prisma generate`

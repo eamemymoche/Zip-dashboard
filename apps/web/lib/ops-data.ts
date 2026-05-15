@@ -23,6 +23,14 @@ export type ProductPacket = {
   detail: string;
 };
 
+export type VehicleRecord = {
+  code: string;
+  type: string;
+  capacity: number | null;
+  active: boolean;
+  notes: string;
+};
+
 export type OrderRecord = {
   id: number;
   date: string;
@@ -37,14 +45,19 @@ export type OrderRecord = {
   join: number;
   visitor: number;
   driver: string;
+  driverCode: string;
+  vehicle: string;
+  vehicleCode: string;
   boarding: BookingStatus;
   assignedStaff: string[];
   adminNote: string;
+  updatedAt?: number;
 };
 
 export type DashboardSeed = {
   orders: OrderRecord[];
   employees: EmployeeRecord[];
+  vehicles: VehicleRecord[];
   productPackets: ProductPacket[];
   timeSlots: string[];
 };
@@ -71,6 +84,12 @@ export const productPacketsSeed: ProductPacket[] = [
   { name: "Luge", detail: "Luge Only" },
   { name: "Visitor", detail: "Entrance + Lunch" },
   { name: "Inspector", detail: "Site Inspection" }
+];
+
+export const vehiclesSeed: VehicleRecord[] = [
+  { code: "V001", type: "Van", capacity: 10, active: true, notes: "Primary morning shuttle" },
+  { code: "V002", type: "Van", capacity: 10, active: true, notes: "Flexible backup van" },
+  { code: "V003", type: "Car", capacity: 4, active: true, notes: "Light load / VIP fallback" }
 ];
 
 export const timeSlots = ["07:00", "08:00", "09:00", "11:00", "12:00", "13:00"];
@@ -127,6 +146,8 @@ export function generatePrototypeOrders(): OrderRecord[] {
     .filter((employee) => employee.role === "Staff")
     .map((employee) => employee.name);
 
+  const vehicleCodes = vehiclesSeed.map((vehicle) => vehicle.code);
+
   const orders: OrderRecord[] = [];
   let currentId = 1;
 
@@ -139,6 +160,7 @@ export function generatePrototypeOrders(): OrderRecord[] {
       const status = createOrderStatus(currentId);
       const packet = productPacketsSeed[i % productPacketsSeed.length];
       const driver = status === "CANCELLED" ? "" : driverNames[i % driverNames.length];
+      const vehicle = status === "CANCELLED" ? "" : vehicleCodes[i % vehicleCodes.length];
       const assignedStaff =
         status === "NO_SHOW"
           ? []
@@ -158,6 +180,9 @@ export function generatePrototypeOrders(): OrderRecord[] {
         join,
         visitor,
         driver,
+        driverCode: status === "CANCELLED" ? "" : employeesSeed.filter((employee) => employee.role === "Driver")[i % driverNames.length]?.id ?? "",
+        vehicle,
+        vehicleCode: vehicle,
         boarding: status,
         assignedStaff,
         adminNote:
@@ -179,6 +204,7 @@ export function createDashboardSeed(): DashboardSeed {
   return {
     orders: generatePrototypeOrders(),
     employees: employeesSeed,
+    vehicles: vehiclesSeed,
     productPackets: productPacketsSeed,
     timeSlots
   };
