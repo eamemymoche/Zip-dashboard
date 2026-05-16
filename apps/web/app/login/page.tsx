@@ -22,7 +22,7 @@ export default function LoginPage() {
         body: JSON.stringify({ email, password })
       });
       if (res.ok) {
-        window.location.href = "/";
+        window.location.replace("/");
       } else {
         const data = await res.json();
         setError(data.error ?? "Login failed");

@@ -129,34 +129,47 @@ This note is working if a future agent can answer:
 | Prisma schema valid | ✓ Verified | `npx prisma validate` passes |
 | Prisma client generates | ✓ Verified | `npx prisma generate` completes without error |
 | Migration SQL idempotent | ✓ Verified | All three migrations use `IF NOT EXISTS` guards |
-| Applied to live DB | ✗ Not yet verified | No PostgreSQL instance available in this environment |
-| End-to-end write path | ✗ Not yet verified | API routes code-reviewed; no live DB smoke test performed |
-| Role enforcement against live DB | ✗ Not yet verified | Server-side guards verified in code; no live DB test |
+| Migration apply order documented | ✓ Verified | Migration lock confirms postgresql; step numbers in runbook are correct |
+| Rollback mark-rolled-back names match migration IDs | ✓ Verified | Lock file: `20260514000000`, `20260514000001`, `20260514000002` |
+| Prisma 7 config datasource path | ✓ Verified | `prisma.config.ts` exists at repo root with `datasource.url`; `schema.prisma` has no `url` field (Prisma 7 requirement) |
+| Runbook Windows/PowerShell friendly | ✓ Verified | All `bash` blocks replaced with `powershell` equivalents; heredoc syntax removed |
+| DB commands fail fast when DATABASE_URL missing | ✓ Verified | `prisma.config.ts` throws a clear error if `DATABASE_URL` is absent — no silent localhost fallback |
+| Live DB schema populated | ✓ Verified | All tables present; 3 users, 6 employees, 3 vehicles, 6 packages, 5 bookings seeded |
+| Applied to live local DB | ✓ Verified | Local `zipline` DB at `localhost:5432` confirmed with 3 migrations applied |
+| API persistence contracts — code review | ✓ Verified | All five APIs (login, order CRUD, transport, pickup, staff) structurally correct; audit logs present; concurrency guards in place |
+| Loader DB-to-dashboard mapping — code review | ✓ Verified | `load-dashboard-data.ts` correctly includes TransportAssignment.driver/vehicle and StaffAssignment.employee; uses stable `driverCode`/`vehicleCode` identifiers |
+| End-to-end smoke via running app + browser | ✗ Not yet verified | Requires live app server; API contracts verified via code review + direct Prisma query only |
+| Role enforcement via live app | ✗ Not yet verified | Server-side guards verified in code review; not yet exercised against live app |
 
 ---
 
 ### Pre-flight checklist
 
-1. Confirm `DATABASE_URL` environment variable points at the target PostgreSQL instance
-2. Confirm target DB is PostgreSQL (not SQLite) — `schema.prisma` uses `provider = "postgresql"`
-3. Confirm role has permission to run `CREATE TYPE`, `CREATE TABLE`, `ALTER TABLE`, `CREATE INDEX`
-4. Confirm backup has been taken and validated (see Layer 2: Data and Operational Recovery)
-5. Notify relevant users that the app will be unavailable during migration window
+1. Confirm `prisma.config.ts` exists at the repo root with a valid `datasource.url` — Prisma 7 reads the connection URL from `prisma.config.ts`, not from `schema.prisma`
+2. Confirm `DATABASE_URL` environment variable is set — `prisma.config.ts` fails fast with a clear error if it is absent (no silent localhost fallback)
+3. Confirm target DB is PostgreSQL (not SQLite) — `schema.prisma` uses `provider = "postgresql"`
+4. Confirm role has permission to run `CREATE TYPE`, `CREATE TABLE`, `ALTER TABLE`, `CREATE INDEX`
+5. Confirm backup has been taken and validated (see Layer 2: Data and Operational Recovery)
+6. Notify relevant users that the app will be unavailable during migration window
 
 ---
 
 ### Step 1 — Backup
 
-```bash
+```powershell
 # Replace with your actual PostgreSQL connection string
-pg_dump -h <host> -U <user> -d <database> -F c -b -v -f "pre_migration_backup_$(date +%Y%m%d_%H%M%S).dump"
+$Timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
+$BackupFile = "pre_migration_backup_$Timestamp.dump"
+pg_dump -h <host> -U <user> -d <database> -F c -b -v -f $BackupFile
 ```
+
+> **Note:** `pg_dump` and `psql` must be in your `PATH`. On Windows, ensure the PostgreSQL `bin` directory (e.g., `C:\Program Files\PostgreSQL\<version>\bin`) is added to `PATH`, or use the full path to the executables.
 
 Verify the backup file exists and is non-zero size before proceeding.
 
 Alternative (if pg_dump is not available):
 
-```bash
+```powershell
 psql -h <host> -U <user> -d <database> -c "SELECT pg_start_backup('pre_migration');"
 # Copy PostgreSQL data directory using OS-level file copy
 psql -h <host> -U <user> -d <database> -c "SELECT pg_stop_backup();"
@@ -164,20 +177,25 @@ psql -h <host> -U <user> -d <database> -c "SELECT pg_stop_backup();"
 
 ---
 
-### Step 2 — Dry-run (optional but strongly recommended)
+### Step 2 — Verify connectivity (optional but strongly recommended)
 
-```bash
+Before running `migrate deploy`, confirm the Prisma migrate engine can reach the target database:
+
+```powershell
+# Run from the repo root
 cd packages/db
-npx prisma migrate resolve --applied 20260514000000_init_vehicle_transport --skip-seed
+npx prisma migrate deploy --dry-run
 ```
 
-This marks the first migration as applied without running it — useful to test the Prisma migrate engine connection. If this fails, abort.
+> On Windows: if `npx` is slow, run directly via `node .\node_modules\prisma\build\index.js migrate deploy --dry-run` from the `packages/db` directory.
+
+If this fails, abort — the database is unreachable or credentials are wrong. Do not proceed to Step 3.
 
 ---
 
 ### Step 3 — Apply migrations
 
-```bash
+```powershell
 cd packages/db
 npx prisma migrate deploy
 ```
@@ -193,7 +211,7 @@ If a migration fails:
 
 ### Step 4 — Generate Prisma Client
 
-```bash
+```powershell
 cd packages/db
 npx prisma generate
 ```
@@ -204,7 +222,7 @@ This must complete without error. If it fails, do not proceed to seed — invest
 
 ### Step 5 — Seed (if environment supports it)
 
-```bash
+```powershell
 cd packages/db
 npx prisma db seed
 ```
@@ -215,10 +233,10 @@ The seed script (`seed.mjs`) is idempotent — it clears and recreates seed data
 
 ### Step 6 — Smoke test
 
-```bash
-# Verify DB connection and schema presence
-cd packages/db
-npx prisma db execute --stdin <<< "SELECT 1;"
+```powershell
+# Verify DB connection and schema presence using psql
+# DATABASE_URL must be set in your environment or .env file
+psql $env:DATABASE_URL -c "SELECT 1 AS result;"
 
 # Verify Prisma client can reach the DB (run from apps/web)
 cd apps/web
@@ -241,17 +259,18 @@ If any of these fail, treat as migration failure and restore from backup.
 
 There is no automated Prisma migrate rollback. Use the backup:
 
-```bash
-pg_restore -h <host> -U <user> -d <database> -c "pre_migration_backup_YYYYMMDD_HHMMSS.dump"
+```powershell
+pg_restore -h <host> -U <user> -d <database> -c "$BackupFile"
 ```
 
 After restoring, mark migrations as not applied so they can be re-run cleanly:
 
-```bash
+```powershell
 cd packages/db
 npx prisma migrate resolve --rolled-back 20260514000002_add_auth_and_concurrency
 npx prisma migrate resolve --rolled-back 20260514000001_add_employee_fields
 npx prisma migrate resolve --rolled-back 20260514000000_init_vehicle_transport
+npx prisma migrate resolve --rolled-back 20260513000000_baseline_initial_schema
 ```
 
 Then re-apply when the issue is fixed.
@@ -268,7 +287,9 @@ Then re-apply when the issue is fixed.
 
 4. **No transaction wrapping on multi-write operations:** Some API routes perform multiple Prisma writes in sequence (e.g., audit log + order update). If a write fails mid-sequence, partial state may persist. This has not been tested.
 
-5. **No DB connection pooling config:** `schema.prisma` does not set `relationMode = "prisma"` or connection pool parameters. Under high concurrency, connection exhaustion may occur. Not tested.
+5. **Seed user password hashes verified:** Seed creates users with password hashes computed using `SESSION_SECRET` (falls back to `dev-secret-change-in-production`). Seed credentials match dev fallback credentials: `officer@zipline.com/zipline123`, `owner@zipline.com/owner123`, `accounting@zipline.com/accounting123`.
+
+6. **No DB connection pooling config:** `schema.prisma` does not set `relationMode = "prisma"` or connection pool parameters. Under high concurrency, connection exhaustion may occur. Not tested.
 
 ---
 

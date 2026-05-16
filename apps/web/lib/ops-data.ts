@@ -21,6 +21,7 @@ export type EmployeeRecord = {
 export type ProductPacket = {
   name: string;
   detail: string;
+  active: boolean;
 };
 
 export type VehicleRecord = {
@@ -73,17 +74,17 @@ export const employeesSeed: EmployeeRecord[] = [
 ];
 
 export const productPacketsSeed: ProductPacket[] = [
-  { name: "Extreme", detail: "Z38 + Luge + Swing + Transport" },
-  { name: "Express", detail: "Z38 + Swing + Transport" },
-  { name: "Exciting", detail: "Z19 + Swing + Luge" },
-  { name: "Gold Zipline", detail: "38 PF" },
-  { name: "Silver Zipline", detail: "16 PF" },
-  { name: "Extra", detail: "Visitor + Luge" },
-  { name: "Fast Track", detail: "Zipline Only" },
-  { name: "Fast Track + Luge", detail: "Zipline + Luge" },
-  { name: "Luge", detail: "Luge Only" },
-  { name: "Visitor", detail: "Entrance + Lunch" },
-  { name: "Inspector", detail: "Site Inspection" }
+  { name: "Extreme", detail: "Z38 + Luge + Swing + Transport", active: true },
+  { name: "Express", detail: "Z38 + Swing + Transport", active: true },
+  { name: "Exciting", detail: "Z19 + Swing + Luge", active: true },
+  { name: "Gold Zipline", detail: "38 PF", active: true },
+  { name: "Silver Zipline", detail: "16 PF", active: true },
+  { name: "Extra", detail: "Visitor + Luge", active: true },
+  { name: "Fast Track", detail: "Zipline Only", active: true },
+  { name: "Fast Track + Luge", detail: "Zipline + Luge", active: true },
+  { name: "Luge", detail: "Luge Only", active: true },
+  { name: "Visitor", detail: "Entrance + Lunch", active: true },
+  { name: "Inspector", detail: "Site Inspection", active: true }
 ];
 
 export const vehiclesSeed: VehicleRecord[] = [

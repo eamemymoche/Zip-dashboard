@@ -183,9 +183,9 @@ These are intentionally separate. A `User` logs in and gets a business-role for 
 
 - Login via `api/auth/login` with email + password
 - Session token issued as httpOnly cookie `zcc_session`
-- Middleware reads session, sets `x-user-id` and `x-user-role` headers
-- AuthProvider exposes `{ userId, role, loading }` to React tree
-- Login page redirects to `/` on success
+- Proxy reads session cookie, sets `x-user-id` and `x-user-role` headers
+- AuthProvider exposes `{ user, loading, refresh, logout }` to React tree (`user` is `CurrentUser | null` with shape `{ id, email, displayName, role }`)
+- Login page redirects to `/` on success via `window.location.href`
 
 ### Role Access
 

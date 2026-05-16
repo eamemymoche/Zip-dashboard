@@ -11,14 +11,24 @@
     "dev": "node ./node_modules/next/dist/bin/next dev ./apps/web --hostname 127.0.0.1 --port 3000",
     "build": "node ./node_modules/next/dist/bin/next build ./apps/web",
     "lint": "node ./node_modules/next/dist/bin/next lint ./apps/web",
+    "verify:task24": "powershell -ExecutionPolicy Bypass -File ./scripts/task24-smoke.ps1",
+    "verify:task26": "powershell -ExecutionPolicy Bypass -File ./scripts/task26-guardrails.ps1",
+    "verify:task27": "node ./scripts/task27-ui-verify.mjs",
+    "verify:task29": "node ./scripts/task29-verify-audit-helper.mjs",
+    "verify:task30": "node ./scripts/task30-delete-hardening.mjs",
+    "verify:milestoneA": "node ./scripts/verify-milestone-a-product.mjs",
+    "audit:booking": "node ./scripts/task29-audit-log-by-booking.mjs",
     "db:generate": "node ./node_modules/prisma/build/index.js generate --schema packages/db/prisma/schema.prisma",
     "db:migrate": "node ./node_modules/prisma/build/index.js migrate dev --schema packages/db/prisma/schema.prisma",
     "db:seed": "node packages/db/prisma/seed.mjs"
   },
   "dependencies": {
-    "@prisma/client": "^7.8.0"
+    "@prisma/adapter-pg": "^7.8.0",
+    "@prisma/client": "^7.8.0",
+    "pg": "^8.20.0"
   },
   "devDependencies": {
+    "playwright": "^1.60.0",
     "prisma": "^7.8.0"
   }
 }

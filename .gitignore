@@ -8,5 +8,7 @@ coverage/
 apps/*/.next/
 packages/*/node_modules/
 *.log
+*.tsbuildinfo
+task27-ui-verify.png
 
 Zip/.obsidian/workspace.json

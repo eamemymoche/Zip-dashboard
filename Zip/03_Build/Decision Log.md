@@ -61,11 +61,11 @@ Per [[Security and Multi-User Guardrails]] and [[Roles and Permissions]], the sy
 
 - `UserRole` enum added to schema (ADMIN, ACCOUNTING, MANAGER, STAFF, DRIVER) — separate from `EmployeeRole` (field role: ADMIN, DRIVER, STAFF, MANAGER). `User` entity gets business-role `UserRole`; `Employee` entity keeps field-role `EmployeeRole`. They map cleanly since User and Employee are different entities.
 - `passwordHash` column added to `User` model (TEXT, nullable, backward-compatible).
-- `apps/web/app/api/auth/login/route.ts` created — POST (login with email/password → sets httpOnly `zcc_session` cookie), GET (read session), DELETE (logout). Uses `crypto.createHmac` with `SESSION_SECRET` env var (falls back to `dev-secret-for-zcc-2026`).
+- `apps/web/app/api/auth/login/route.ts` created — POST (login with email/password → sets httpOnly `zcc_session` cookie), GET (read session), DELETE (logout). Uses `crypto.createHmac` with `SESSION_SECRET` env var (falls back to `dev-secret-change-in-production`).
 - Session token: Base64url-encoded `{userId}:{role}:{timestamp}` with HMAC-SHA256 prefix signature, 8-hour expiry.
 - `apps/web/proxy.ts` gates all paths except `/login`, `/api/auth`, `/api/subagent`, and Next.js internals. Redirects to `/login?from=<path>` on missing or invalid session. Sets `x-user-id` and `x-user-role` headers on success. Uses `crypto` module in Node.js runtime (not Edge Runtime) — no crypto warnings in Next.js 16. Renamed from `middleware.ts` to follow Next.js 16 proxy convention; exported function is `proxy` not `middleware`.
 - `apps/web/app/login/page.tsx` created — dark-themed email/password form, redirects to `/` on success via `router.push("/")` then `router.refresh()`.
-- `apps/web/lib/auth/auth-context.tsx` created — `AuthProvider` + `useAuth()` hook with `{ userId, role, loading }`.
+- `apps/web/lib/auth/auth-context.tsx` created — `AuthProvider` + `useAuth()` hook with `{ user, loading, refresh, logout }`. `user` is `CurrentUser | null` (shape: `{ id, email, displayName, role }`). `refresh()` re-fetches session; `logout()` calls DELETE then redirects to `/login` via `window.location.replace`. Dev auth fallback for local-dev (no DB required).
 - `apps/web/app/providers.tsx` wraps `AuthProvider` as a client component.
 - `apps/web/app/layout.tsx` wrapped in `<Providers>`.
 - **Dev auth fallback** (local-dev only): Login API falls back to hardcoded users `officer@zipline.com/zipline123`, `owner@zipline.com/owner123`, `accounting@zipline.com/accounting123` with `dev-` prefixed IDs when DB is unavailable. NOT production auth.
@@ -500,7 +500,7 @@ Four separate UX issues identified after auth session flow review:
 
 ### Consequences
 
-- **Logout redirect**: `logout()` now calls `window.location.href = "/login"` to force a full page redirect to the login page after the DELETE API call. This is the most reliable way to ensure the user lands on the login page regardless of client-side routing state.
+- **Logout redirect**: `logout()` now calls `window.location.replace("/login")` to force a full page redirect to the login page after the DELETE API call without leaving an extra protected-page history entry behind.
 - **Logout button in sidebar**: The logout button is now rendered inside the sidebar `<aside>` at the bottom (after the nav items loop), using `marginTop: "auto"` to push it to the bottom. The top-right user info strip in the content area was removed. Icon is an SVG logout icon.
 - **Personnel visibility via role cookie**: Added a second cookie `zcc_role` that stores the user's role alongside the session token. The login API sets this cookie on POST. The proxy reads it synchronously on every request and injects it into `x-user-role` headers. This means `session.role` in the proxy is now backed by an actual cookie value that matches what the client knows, preventing the first-render null state from affecting navigation visibility.
 - **Login panel improvements**: Password input now has an eye/eye-off SVG toggle button. Login panel shows a proper 3-row credentials table (Role | Email | Password) for the dev accounts instead of a single-line hint.
@@ -508,7 +508,7 @@ Four separate UX issues identified after auth session flow review:
 
 ### Files Changed
 
-- `apps/web/lib/auth/auth-context.tsx`: `logout()` now uses `window.location.href = "/login"` for direct redirect
+- `apps/web/lib/auth/auth-context.tsx`: `logout()` now uses `window.location.replace("/login")` for direct redirect
 - `apps/web/app/operations-dashboard.tsx`: Logout button moved from top-right content header to sidebar bottom; top-right user info strip removed
 - `apps/web/app/api/auth/login/route.ts`: POST sets `zcc_role` cookie alongside `zcc_session`; DELETE clears both cookies
 - `apps/web/proxy.ts`: Reads `zcc_role` cookie for synchronous role value; deletes `zcc_role` on redirect/error paths
@@ -528,8 +528,8 @@ The login page was using `router.push("/")` + `router.refresh()` which triggers 
 
 ### Consequences
 
-- **Login page uses `window.location.href = "/"` instead of `router.push()`**: A full-page navigation ensures the browser makes a fresh request to the server. The proxy intercepts that request, reads both `zcc_session` and `zcc_role` cookies, and sets the correct headers. When the dashboard page renders, the `AuthProvider` `useEffect` fires `fetchUser()` which finds the valid session (matching the cookies the proxy just processed) and sets `user` with the correct role before the first render completes. Personnel nav is visible immediately.
-- **`logout()` already uses `window.location.href = "/login"`**: This was already fixed in the earlier session — it forces a full-page redirect so the proxy clears cookies and the session state is truly gone before the login page renders.
+- **Login page uses `window.location.replace("/")` instead of `router.push()`**: A full-page navigation ensures the browser makes a fresh request to the server while also avoiding an extra history entry that can complicate back-navigation after login/logout.
+- **`logout()` uses `window.location.replace("/login")`**: This forces a full-page redirect so the proxy clears cookies and the session state is truly gone before the login page renders, without leaving a stale protected route in the history stack.
 - **`fetchUser()` continues to be the source of truth for client state**: The login POST response already sets the session cookie. `fetchUser()` on the next page load reads it back. This pattern is consistent.
 - No changes to `operations-dashboard.tsx` sidebar nav logic — it already uses `userRole` correctly.
 
@@ -545,7 +545,7 @@ Add auth hydration loading gate to the dashboard to prevent role-gated navigatio
 
 ### Context
 
-Even with `window.location.href = "/"` on login and the `zcc_role` cookie fix, the `AuthProvider` still fires `fetchUser()` asynchronously after mount. During that window — from when the component first renders until `fetchUser()` resolves — `user` is `null` and `loading` is `true`. This causes the sidebar to briefly render with default/empty nav state before correctly showing the Personnel item for ADMIN/MANAGER.
+Even with `window.location.replace("/")` on login and the `zcc_role` cookie fix, the `AuthProvider` still fires `fetchUser()` asynchronously after mount. During that window — from when the component first renders until `fetchUser()` resolves — `user` is `null` and `loading` is `true`. This causes the sidebar to briefly render with default/empty nav state before correctly showing the Personnel item for ADMIN/MANAGER.
 
 The same applies to the top-right content area (now removed) and any role-gated action buttons.
 
@@ -554,7 +554,7 @@ The same applies to the top-right content area (now removed) and any role-gated 
 - **OperationsDashboard early-return on `loading`**: The dashboard now checks `loading` from `useAuth()` immediately after the hook call. While `loading === true`, it renders a minimal loading screen (navy background, centered ZIPLINE logo, "Loading..." text) instead of rendering the full dashboard with incorrect auth state. Once `fetchUser()` completes and `loading` becomes `false`, the correct dashboard renders with `user` populated and role-gated nav items correct on the first pass.
 - **No role-gated flicker**: The Personnel nav item (ADMIN/MANAGER only) is never rendered with the wrong role state because the render is blocked until auth is confirmed.
 - **`useAuth()` hook unchanged**: The `AuthContext` still exposes `{ user, loading, refresh, logout }`. No new state management introduced.
-- **`logout()` unchanged**: Still calls DELETE API then `window.location.href = "/login"`.
+- **`logout()` unchanged in intent**: Still calls DELETE API then hard-redirects to login, now via `window.location.replace("/login")`.
 
 ### Files Changed
 
@@ -687,3 +687,807 @@ The dev auth fallback was implemented as a post-DB-check fallback, but when Pris
 - The dev fallback remains a local-dev-only path with `dev-` prefixed user IDs
 - No changes to Prisma schema, migrations, or provider
 - No changes to session token format or cookie structure
+
+## 2026-05-16 (Afternoon)
+
+### Decision
+
+Fix auth loading deadlock so protected pages never remain on the Loading screen indefinitely.
+
+### Context
+
+The `AuthProvider` used a single `loading: true` initial state and relied entirely on `fetchUser()` resolving to update it to `false`. In several scenarios the fetch could leave `loading` stuck as `true` indefinitely:
+
+1. **Stale back-cache navigation**: When the browser restores a page from bfcache after logout, `useEffect` runs `fetchUser()` but the request can still race with restored client state
+2. **Stale response races**: Multiple auth fetches could overlap and let an older response overwrite newer state
+3. **No timeout on fetch**: If the server is slow or the network stalls, the loading state has no upper bound
+4. **No explicit redirect for unauthenticated state**: The dashboard renders `loading ? <Loading> : <Dashboard>` but never checked `!user` to redirect — so if `user` became `null` after a timeout, the dashboard would render without auth context
+
+The logout flow also set `loading(false)` but did not abort any in-flight fetch, so a late-arriving response after logout could race with the redirect.
+
+### Consequences
+
+**`apps/web/lib/auth/auth-context.tsx`:**
+- `fetchUser()` now uses an `AbortController` signal with an **8-second timeout** and `cache: "no-store"`. If the fetch exceeds 8 seconds (timeout, network stall, or server hang), `setUser(null)` and `setLoading(false)` fire and the loading state resolves.
+- Previous in-flight fetches are **aborted** before starting a new one, and a request sequence guard prevents stale responses from racing with current state.
+- `refresh()` no longer sets `loading(true)` manually — `fetchUser()` handles it internally. This avoids the race where `refresh()` sets `loading(true)` but the previous `fetchUser()` is still running.
+- `logout()` aborts any in-flight fetch before calling DELETE, preventing post-logout race conditions.
+- `pageshow` event now triggers `fetchUser()` which will re-confirm auth or expire the session, handling bfcache restoration correctly without extra `focus` / `visibilitychange` fetch storms.
+
+**`apps/web/app/operations-dashboard.tsx`:**
+- Added explicit `if (!user) { window.location.replace("/login?from=/"); return null; }` guard after the loading gate.
+- This is a belt-and-suspenders safety: if `fetchUser()` resolves with `user: null` (timeout, network error, or bfcache session expiry), the dashboard redirects to `/login` instead of rendering a partially-authenticated state.
+- The `loading` gate is preserved as the primary UX experience; this is the secondary fallback.
+
+### Files Changed
+
+- `apps/web/lib/auth/auth-context.tsx` — added `AbortController`, 8s timeout on fetch, `cache: "no-store"`, request sequence guard, abort on logout, abort on new fetch, `pageshow` refresh
+- `apps/web/app/operations-dashboard.tsx` — added `!user` safety redirect after loading gate via `window.location.replace("/login?from=/")`
+
+### What This Does NOT Change
+
+- The logout/back-cache proxy protection remains unchanged (server-side `zcc_session` cookie check via `proxy.ts`)
+- No changes to session token structure or cookie names
+- No changes to Prisma schema or API routes
+- Loading gate is preserved — users still see the "Loading..." screen during initial auth check
+
+## 2026-05-16 (Evening)
+
+### Decision
+
+Fix Prisma 7 datasource URL configuration and make runbook Windows/PowerShell-friendly.
+
+### Context
+
+When attempting to add `url = env("DATABASE_URL")` to `schema.prisma` per standard Prisma practice, `prisma validate` rejected it with error P1012: `The datasource property 'url' is no longer supported in schema files`. This project uses Prisma 7.8.0, which requires the connection URL to be specified in `prisma.config.ts` (at the repo root), not in `schema.prisma`. The `schema.prisma` must have only `provider` and no `url` field.
+
+The existing `prisma.config.ts` already had the correct `datasource.url` pointing at `DATABASE_URL` with a fallback. The `schema.prisma` was already correct — it was missing the URL by design (not a bug), since Prisma 7 moved that responsibility to `prisma.config.ts`.
+
+### Consequences
+
+- `schema.prisma` confirmed as correct: `datasource db { provider = "postgresql" }` with no `url` field (Prisma 7 requirement)
+- `prisma.config.ts` at repo root already correctly defines `datasource.url` from `DATABASE_URL` with a localhost fallback
+- Runbook converted from `bash` to `powershell` code blocks throughout
+- Heredoc syntax (`<<<`) replaced with PowerShell-compatible alternatives (`--stdin --confirm`)
+- Backup filename generation changed from bash `$(date +...)` to PowerShell `Get-Date -Format "yyyyMMdd_HHmmss"`
+- Pre-flight checklist updated to mention `prisma.config.ts` as the Prisma 7 connection URL source
+
+### Files Changed
+
+- `packages/db/prisma/schema.prisma` — no structural change (was already correct; `url = env(...)` was tried and rejected — reverted)
+- `Zip/03_Build/Backup Recovery and Versioning.md` — pre-flight checklist updated for Prisma 7 config, all bash → powershell, heredoc removed, backup timestamp made Windows-compatible
+
+---
+
+## 2026-05-16 (Late Evening)
+
+### Decision
+
+Task 16 passed via live app session smoke verification against the running local server and local PostgreSQL.
+
+### Context
+
+Verified against local PostgreSQL `localhost:5432/zipline` using direct DB queries, the running local app server at `http://127.0.0.1:3000`, authenticated HTTP session flows through the live app endpoints, and post-write DB verification.
+
+### Verified: Schema and seed data
+
+All required tables are present and populated for this phase.
+
+### Verified through the running app
+
+- Unauthenticated root redirects to `/login?from=%2F`
+- Login with `officer@zipline.com / zipline123` returns a DB-backed user id (`cmp...`) rather than a `dev-...` fallback id
+- Authenticated root returns `200`
+- Order create, update, transport assignment, pickup status write, staffing assignment write, and delete all succeed through the live app endpoints
+- Logout clears session and protected root redirects to `/login?from=%2F` again
+- Post-delete DB verification confirms the smoke booking and related child rows are gone
+- Audit log contains the expected action trail for the smoke flow
+
+### Consequences
+
+- All five persistence slices are verified against the running app and local PostgreSQL for this phase
+- Audit logging is in place for all write paths
+- Optimistic concurrency guards (via `updatedAt`) remain in place on all write APIs
+- Build passes clean - `npm run build` succeeds with no TypeScript errors
+- Three runtime issues were found and fixed during verification:
+  - `apps/web/lib/prisma.ts` now loads `.env.local` / `.env` so the running app can see `DATABASE_URL`
+  - `/api/auth/login` now prefers the DB-backed user path before dev fallback
+  - `/api/order` DELETE now removes dependent transport/pickup/staff rows in a transaction before deleting the booking
+
+### Files Changed
+
+- `apps/web/lib/prisma.ts`
+- `apps/web/app/api/auth/login/route.ts`
+- `apps/web/app/api/order/route.ts`
+- Obsidian notes updated: Task Board.md, Decision Log.md, Agent Work Queue.md
+
+## 2026-05-16 (Night)
+
+### Decision
+
+Split Staffing Board into its own render-only component without changing staffing persistence semantics.
+
+### Context
+
+After Task 16, the DB-backed baseline was stable enough to continue the lightweight refactor plan. `operations-dashboard.tsx` still contained the full Staffing > Board whiteboard markup, even though Transport Recheck, Transport Sheet, and Staffing Setup had already been extracted. The next safe step was to extract only the Staffing Board rendering while keeping all shared state and persistence callbacks in the parent dashboard container.
+
+### Consequences
+
+- Added `apps/web/app/staffing-board-view.tsx`.
+- The new component owns the board header, board date picker, slot columns, warning/no-show card rendering, and total-join footer per slot.
+- `operations-dashboard.tsx` now passes `boardDate`, `boardOrders`, `initialData`, and `setBoardDate` as props.
+- No persistence logic moved; staffing writes still remain in the parent through the existing setup flow and DB-backed API path.
+- This keeps the split pattern consistent with the handbook: render extraction only, no schema or API behavior changes.
+
+### Files Changed
+
+- `apps/web/app/staffing-board-view.tsx`
+- `apps/web/app/operations-dashboard.tsx`
+- `Zip/03_Build/Module Ownership and Split Guide.md`
+- `Zip/03_Build/Task Board.md`
+
+## 2026-05-16 (Late Evening)
+
+### Decision
+
+Harden `prisma.config.ts` to fail fast when `DATABASE_URL` is missing, instead of silently falling back to localhost.
+
+### Context
+
+The previous `prisma.config.ts` used `process.env.DATABASE_URL ?? "postgresql://postgres:postgres@localhost:5432/zipline"` — a silent fallback that would mask misconfiguration during migration/seed commands. An operator could run `npm run db:seed` without `DATABASE_URL` set and the command would silently connect to a local PostgreSQL instance (if one existed) rather than failing with a clear message.
+
+This is a safety issue before the first real migration: we want DB commands to fail clearly when not configured, not silently do the wrong thing.
+
+### Changes
+
+**`prisma.config.ts`:**
+- Removed the localhost fallback from the `??` chain
+- Now throws a descriptive error immediately if `DATABASE_URL` is absent
+- Error message explains what to set and points to README.md for full setup steps
+
+**`packages/db/prisma/seed.mjs`:**
+- Removed duplicate `SESSION_SECRET` declaration and `hashPassword()` definition that appeared earlier in the file (lines 5–9)
+- Single declaration now sits just before `hashPassword()` (after the data arrays, before `main()`), matching the logical order used by the login API
+
+### Consequences
+
+- `npm run db:migrate`, `npm run db:seed`, and `npx prisma generate` now fail fast with a clear message if `DATABASE_URL` is unset
+- The Next.js app itself is unaffected — it runs fine in fallback mode with seed data when no PostgreSQL is available
+- The hardening does not change app UI behavior or add new dependencies
+
+### Files Changed
+
+- `prisma.config.ts` — fail-fast guard added; localhost fallback removed
+- `packages/db/prisma/seed.mjs` — duplicate SESSION_SECRET/hashPassword block removed; single declaration now correctly placed after data arrays
+- `README.md` — "Prerequisites for all DB commands" section updated with fail-fast note
+- `Zip/03_Build/Backup Recovery and Versioning.md` — pre-flight checklist item 2 updated to reflect fail-fast; verification table added row for fail-fast check
+
+## 2026-05-16 (Late Evening)
+
+### Decision
+
+Add a fresh-install baseline migration and Prisma 7 PostgreSQL adapter path so the local PostgreSQL instance can be migrated and seeded successfully.
+
+### Context
+
+Once a real local PostgreSQL instance became available, `migrate deploy` failed on a fresh database because the existing migration chain started with delta-style changes (`ALTER TABLE "TransportAssignment" ...`) rather than a full initial schema. After that was corrected, runtime DB access still could not work because Prisma 7 in this repo required a PostgreSQL driver adapter (`@prisma/adapter-pg`) instead of relying on a no-arg `new PrismaClient()`.
+
+### Consequences
+
+- Added baseline migration `20260513000000_baseline_initial_schema` generated from the current schema so fresh PostgreSQL installs have a full starting point.
+- Fixed `20260514000002_add_auth_and_concurrency/migration.sql` to use a valid `udt_name` guard instead of the invalid `column_type` check.
+- Installed `pg` and `@prisma/adapter-pg`.
+- Added shared helper `apps/web/lib/prisma.ts` using `new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }) })`.
+- Updated DB-backed runtime paths (`load-dashboard-data.ts`, auth/order/transport/pickup/staff API routes) to use the shared helper.
+- Updated `seed.mjs` to load `.env.local`, use `PrismaPg`, and use ESM-safe `createHash` import.
+- Local PostgreSQL database `zipline` was created, migrated, and seeded successfully.
+- Verified local DB row counts after seed:
+  - 3 users
+  - 6 employees
+  - 3 vehicles
+  - 6 product packages
+  - 5 bookings
+
+### Files Changed
+
+- `packages/db/prisma/migrations/20260513000000_baseline_initial_schema/migration.sql`
+- `packages/db/prisma/migrations/20260514000002_add_auth_and_concurrency/migration.sql`
+- `apps/web/lib/prisma.ts`
+- `apps/web/lib/load-dashboard-data.ts`
+- `apps/web/app/api/auth/login/route.ts`
+- `apps/web/app/api/order/route.ts`
+- `apps/web/app/api/transport-assignment/route.ts`
+- `apps/web/app/api/pickup-status/route.ts`
+- `apps/web/app/api/staff-assignment/route.ts`
+- `packages/db/prisma/seed.mjs`
+
+## 2026-05-16 (Late Night)
+
+### Decision
+
+Split the Personnel dashboard into its own render-only component.
+
+### Context
+
+After Task 17, `operations-dashboard.tsx` was still carrying the full Personnel surface: header, staff cards, driver cards, expand/collapse detail panels, and employee count summary. This was a large JSX block but still a good candidate for a safe extraction because modal state, employee form state, and create/edit submission logic could remain in the parent container.
+
+### Consequences
+
+- Added `apps/web/app/personnel-view.tsx`.
+- The new component owns Personnel rendering only:
+  - section header
+  - staff and driver card grids
+  - employee counts
+  - expand/collapse detail panels
+  - top-right "new employee" action button
+- `operations-dashboard.tsx` still owns:
+  - `showEmployeeModal`
+  - `editingEmployeeId`
+  - `newEmployee`
+  - `expandedEmployeeId`
+  - `handleEmployeeSubmit`
+  - `openEditEmployeeModal`
+- No DB, auth, or persistence semantics changed.
+- This keeps the split pattern consistent: extract one dense view at a time, preserve parent-owned orchestration.
+
+### Files Changed
+
+- `apps/web/app/personnel-view.tsx`
+- `apps/web/app/operations-dashboard.tsx`
+- `Zip/03_Build/Module Ownership and Split Guide.md`
+- `Zip/03_Build/Task Board.md`
+
+## 2026-05-16 (Late Night)
+
+### Decision
+
+Split the Master dashboard surfaces into their own render-only component.
+
+### Context
+
+After extracting Staffing Board and Personnel, `operations-dashboard.tsx` was still carrying another large render-heavy block: `mainView === "master"` with its `summary`, `pivot`, and `products` subviews. This was the next safe refactor because the parent could retain all orchestration state (`masterView`, `pivotGroupBy`, `pivotMap`) and simply pass explicit callbacks into a child component.
+
+### Consequences
+
+- Added `apps/web/app/master-view.tsx`.
+- The new component owns:
+  - Master subnav rendering
+  - Operational Log table surface
+  - Pivot grouping selector and table surface
+  - Product DB card grid surface
+- `operations-dashboard.tsx` still owns:
+  - `masterView`
+  - `pivotGroupBy`
+  - `pivotMap`
+  - toast/export callbacks
+- No DB, auth, or persistence semantics changed.
+- This continues the same safe split pattern used for Transport, Staffing Board, and Personnel: render extraction only, parent-owned state preserved.
+
+### Files Changed
+
+- `apps/web/app/master-view.tsx`
+- `apps/web/app/operations-dashboard.tsx`
+- `Zip/03_Build/Module Ownership and Split Guide.md`
+- `Zip/03_Build/Task Board.md`
+- `Zip/03_Build/Agent Work Queue.md`
+
+## 2026-05-16 (Late Night)
+
+### Decision
+
+Split the expanded Order List detail/editor surface into its own render-only component.
+
+### Context
+
+After extracting Personnel and Master, the densest remaining JSX block in `operations-dashboard.tsx` was the expanded Order List detail row. That block contained both the read-only booking detail layout and the inline edit UI for one expanded order row. It was a good candidate for a narrow extraction because the parent could still keep all edit state, persistence callbacks, conflict handling, and toast behavior.
+
+### Consequences
+
+- Added `apps/web/app/order-detail-row.tsx`.
+- The new component owns:
+  - read-only expanded booking detail layout
+  - inline edit form layout for an expanded booking row
+  - action button row for edit/delete/save/cancel rendering
+- `operations-dashboard.tsx` still owns:
+  - `expandedOrderId`
+  - `editingOrderId`
+  - `editForm`
+  - `startEditOrder`
+  - `saveEditOrder`
+  - `cancelEditOrder`
+  - `deleteOrder`
+  - toast and conflict behavior
+- No API or DB behavior changed.
+- This continues the current safe split discipline: extract one dense render surface at a time, preserve parent orchestration.
+
+### Files Changed
+
+- `apps/web/app/order-detail-row.tsx`
+- `apps/web/app/operations-dashboard.tsx`
+- `Zip/03_Build/Module Ownership and Split Guide.md`
+- `Zip/03_Build/Task Board.md`
+
+## 2026-05-16 (Late Night)
+
+### Decision
+
+Extract shared pure selectors/helpers out of `operations-dashboard.tsx`.
+
+### Context
+
+After the view-level splits, the orchestration file still contained a long run of derived selectors and summary builders: filtered/sorted orders, capacity cards, transport/recheck/staffing selectors, pivot data, and assistant-context derived lists. These were good extraction candidates because they were pure, deterministic, and did not need direct ownership of React state or side effects.
+
+### Consequences
+
+- Added `apps/web/app/dashboard-selectors.ts`.
+- Moved pure helper logic into the new file:
+  - Order List filter/sort builders
+  - capacity card builder
+  - transport / day / recheck / staffing / board selectors
+  - selected driver / selected staff selectors
+  - pivot builder
+  - assistant driver load and priority booking builders
+- `operations-dashboard.tsx` still owns:
+  - React state
+  - API calls
+  - persistence callbacks
+  - toast behavior
+  - auth-driven orchestration
+- No DB, auth, or persistence semantics changed.
+
+### Files Changed
+
+- `apps/web/app/dashboard-selectors.ts`
+- `apps/web/app/operations-dashboard.tsx`
+- `Zip/03_Build/Module Ownership and Split Guide.md`
+- `Zip/03_Build/Task Board.md`
+
+## 2026-05-16 (Late Night)
+
+### Decision
+
+Keep the Order and Employee modals parent-owned in `operations-dashboard.tsx` for this phase.
+
+### Context
+
+After the recent render-only split sequence, the remaining question was whether the two active modals should also move out of the orchestration file. A close review showed that both modals still depend on parent-owned behavior rather than just view-local rendering:
+
+- the Order modal depends on Order CRUD persistence callbacks plus shared packet/time-slot data
+- the Employee modal depends on create/edit mode switching, reset behavior, photo upload flow, and submission behavior
+
+Because both modals are still tightly coupled to orchestration concerns, extracting them now would make the ownership graph blurrier instead of cleaner.
+
+### Consequences
+
+- No code extraction was performed for Task 23.
+- Modal ownership is now intentionally documented instead of left ambiguous.
+- The next meaningful step is browser verification after the current split sequence, not more structural movement.
+
+### Files Changed
+
+- `Zip/03_Build/Module Ownership and Split Guide.md`
+- `Zip/03_Build/Task Board.md`
+
+## 2026-05-16 (Night)
+
+### Decision
+
+Close Task 24 with explicit verification-scope labels, and queue Tasks 25-30 as the next execution block.
+
+### Context
+
+After the split sequence (Tasks 17-23), verification needed to distinguish true browser interaction from code/build and runtime smoke checks. A full authenticated smoke pass was run against the live local app, including login/logout, Order create/edit/delete, transport assignment write, pickup status write, staffing assignment write, and reload consistency checks. Build was also re-run and passed.
+
+### Consequences
+
+- Task 24 is recorded as complete with transparent scope labels.
+- Verified in this pass:
+  - build success (`npm.cmd run build`)
+  - authenticated runtime write/read/logout flow
+- Not yet browser-click verified in this pass:
+  - Personnel expand/edit modal interaction
+  - Master summary/pivot/products tab switching
+- Next six tasks are now queued as Tasks 25-30, with Task 27 dedicated to closing the remaining browser-click gap.
+
+### Files Changed
+
+- `Zip/03_Build/Task Board.md`
+- `Zip/03_Build/Agent Work Queue.md`
+- `Zip/03_Build/Decision Log.md`
+
+## 2026-05-16 (Late Night)
+
+### Decision
+
+Implement Task 25 now: add a repeatable smoke-verification command for the Task 24 flow.
+
+### Context
+
+Task 24 verification worked, but it was command-heavy and manual. Re-running it repeatedly by hand increases error risk and slows regression checks after refactors.
+
+### Consequences
+
+- Added reusable script: `scripts/task24-smoke.ps1`
+- Added npm command: `npm run verify:task24`
+- Script verifies:
+  - login/logout
+  - Order create/edit/delete
+  - transport assignment write
+  - pickup status write
+  - staffing assignment write
+  - reload consistency before/after delete
+  - protected-route redirect after logout (`307 -> /login`)
+- Script exits `1` on failure and `0` on success
+- Script supports optional base URL override via `ZIPLINE_BASE_URL`
+- Verified by execution on 2026-05-16: pass
+
+### Files Changed
+
+- `scripts/task24-smoke.ps1`
+- `package.json`
+- `README.md`
+- `Zip/03_Build/Task Board.md`
+- `Zip/03_Build/Agent Work Queue.md`
+- `Zip/03_Build/Decision Log.md`
+
+## 2026-05-16 (Late Night)
+
+### Decision
+
+Execute Task 26 and Task 27 immediately with repeatable verification scripts.
+
+### Context
+
+After Task 25, the next gap was explicit guardrail verification (`403`/`409`) and true browser-click verification for the extracted Personnel/Master surfaces.
+
+### Consequences
+
+- Added Task 26 script: `scripts/task26-guardrails.ps1`
+  - command: `npm run verify:task26`
+  - verifies role guards (`403`) and stale-token concurrency guards (`409`) on Order/Transport/Pickup/Staffing APIs
+  - includes cleanup of conflict fixture booking
+- Added Task 27 script: `scripts/task27-ui-verify.mjs` (Playwright)
+  - command: `npm run verify:task27`
+  - browser-click verifies:
+    - Personnel expand -> edit modal open -> cancel close
+    - Master tab switching: summary -> pivot -> products
+  - saves screenshot artifact: `task27-ui-verify.png`
+- Added npm scripts:
+  - `verify:task26`
+  - `verify:task27`
+- Updated README with both verification commands.
+- Updated Task Board and Agent Work Queue to mark Task 26/27 done and move the next active target to Task 28.
+
+### Verification results
+
+- `npm run verify:task26` => pass
+- `npm run verify:task27` => pass
+
+### Files Changed
+
+- `scripts/task26-guardrails.ps1`
+- `scripts/task27-ui-verify.mjs`
+- `package.json`
+- `README.md`
+- `Zip/03_Build/Task Board.md`
+- `Zip/03_Build/Agent Work Queue.md`
+- `Zip/03_Build/Decision Log.md`
+
+## 2026-05-16 (Late Night)
+
+### Decision
+
+Execute and close Task 28, Task 29, and Task 30 in one pass with repeatable verification tooling.
+
+### Context
+
+After Task 26/27, the remaining phase required:
+- explicit reconciliation of local-only UI behavior,
+- a practical audit-log trace helper,
+- and hard verification that FK-linked delete behavior is safe under both success and guarded-failure paths.
+
+### Consequences
+
+- **Task 28 (reconciliation):**
+  - added note `Zip/03_Build/Fallback Local-State Reconciliation.md`
+  - documented exact local-only actions and ordered low-risk fix plan
+
+- **Task 29 (audit helper):**
+  - added helper script `scripts/task29-audit-log-by-booking.mjs`
+  - added verification script `scripts/task29-verify-audit-helper.mjs`
+  - added commands:
+    - `npm run audit:booking -- <BOOKING_NUMBER>`
+    - `npm run verify:task29`
+  - verified that audit rows are found for a create/edit fixture booking
+
+- **Task 30 (delete hardening verify):**
+  - added verification script `scripts/task30-delete-hardening.mjs`
+  - added command `npm run verify:task30`
+  - verified with DB count checks:
+    - linked rows exist before delete
+    - stale-token delete returns `409` and does not mutate rows
+    - valid delete removes booking and all linked transport/pickup/staff rows
+
+- README and Obsidian queue/board were updated to reflect the new commands and completion status.
+
+### Verification results
+
+- `npm run verify:task29` => pass
+- `npm run verify:task30` => pass
+
+### Files Changed
+
+- `scripts/db-env.mjs`
+- `scripts/task29-audit-log-by-booking.mjs`
+- `scripts/task29-verify-audit-helper.mjs`
+- `scripts/task30-delete-hardening.mjs`
+- `package.json`
+- `README.md`
+- `Zip/03_Build/Fallback Local-State Reconciliation.md`
+- `Zip/03_Build/Task Board.md`
+- `Zip/03_Build/Agent Work Queue.md`
+- `Zip/03_Build/Decision Log.md`
+
+## 2026-05-16 (Late Night)
+
+### Decision
+
+Implement Task 28.1 now: move Personnel modal create/edit from local-only updates to API-backed writes.
+
+### Context
+
+The reconciliation note identified Personnel create/edit as the highest-impact remaining local-only behavior. This needed a minimal persistence path without a large UI refactor.
+
+### Consequences
+
+- Added new API route: `apps/web/app/api/employee/route.ts`
+  - `POST /api/employee` create
+  - `PUT /api/employee` update
+  - role guard: `ADMIN` / `MANAGER`
+  - returns normalized `EmployeeRecord` payload
+  - explicit `503` response when DB client is unavailable
+- Added new role constant in `apps/web/lib/auth/role-guards.ts`:
+  - `ALLOWED_ROLES_EMPLOYEE_WRITE`
+- Updated `handleEmployeeSubmit` in `apps/web/app/operations-dashboard.tsx`:
+  - API-first submit behavior
+  - handles `409` duplicate code and `403` permission errors
+  - local-only fallback is now explicit and limited to `503` DB-unavailable cases
+- Regression verification after change:
+  - `npm run build` => pass
+  - `npm run verify:task24` => pass
+  - `npm run verify:task26` => pass
+  - `npm run verify:task27` => pass
+  - `npm run verify:task30` => pass
+
+### Files Changed
+
+- `apps/web/app/api/employee/route.ts`
+- `apps/web/lib/auth/role-guards.ts`
+- `apps/web/app/operations-dashboard.tsx`
+- `Zip/03_Build/Fallback Local-State Reconciliation.md`
+- `Zip/03_Build/Task Board.md`
+- `Zip/03_Build/Agent Work Queue.md`
+- `Zip/03_Build/Decision Log.md`
+
+## 2026-05-16 (Late Night)
+
+### Decision
+
+Close Task 28.2 by aligning loader behavior with the new Employee DB write path.
+
+### Context
+
+Even after Task 28.1, reload behavior could still revert to full seed mode when no `Booking` rows existed, which hid DB-backed Employee updates.
+
+### Consequences
+
+- Updated `apps/web/lib/load-dashboard-data.ts`:
+  - removed full fallback return on empty bookings
+  - DB-sourced `employees`, `vehicles`, and `productPackets` now load independently when available
+  - fallback still applies per-slice when DB returns empty lists
+- Verification:
+  - `npm run build` => pass
+  - `npm run verify:task24` => pass
+- Task progression:
+  - Task 28.2 marked done
+  - next Task 28 item is 28.3 (Product packet persistence decision)
+
+### Files Changed
+
+- `apps/web/lib/load-dashboard-data.ts`
+- `Zip/03_Build/Fallback Local-State Reconciliation.md`
+- `Zip/03_Build/Task Board.md`
+- `Zip/03_Build/Agent Work Queue.md`
+- `Zip/03_Build/Decision Log.md`
+
+## 2026-05-16 (Late Night)
+
+### Decision
+
+Close Task 28.3 with real ProductPackage persistence (not a non-persistent lock).
+
+### Context
+
+After 28.1 and 28.2, the remaining local-only behavior in Task 28 was the Master Product DB add flow, which still used a toast-only placeholder.
+
+### Consequences
+
+- Added role constant:
+  - `ALLOWED_ROLES_PRODUCT_WRITE` (`ADMIN`, `ACCOUNTING`, `MANAGER`)
+- Added new API:
+  - `POST /api/product-package` at `apps/web/app/api/product-package/route.ts`
+  - validates `name` + `detail`
+  - returns `409` on duplicate package name
+  - returns `503` when DB unavailable
+- Updated dashboard behavior:
+  - `productPackets` state now mutable in `operations-dashboard.tsx`
+  - `+ เพิ่มแพ็กเกจ` now prompts for `name`/`detail`, writes via API, and appends created packet to UI list
+- Verification:
+  - `npm run build` => pass
+  - `npm run verify:task24` => pass
+  - `npm run verify:task27` => pass
+
+### Files Changed
+
+- `apps/web/lib/auth/role-guards.ts`
+- `apps/web/app/api/product-package/route.ts`
+- `apps/web/app/operations-dashboard.tsx`
+- `Zip/03_Build/Fallback Local-State Reconciliation.md`
+- `Zip/03_Build/Task Board.md`
+- `Zip/03_Build/Agent Work Queue.md`
+- `Zip/03_Build/Decision Log.md`
+
+## 2026-05-16 (Late Night)
+
+### Decision
+
+Shift planning model from micro-task continuation to milestone-based execution, with two new controlling documents.
+
+### Context
+
+After many completed tasks, project direction risk increased because status visibility was fragmented and next steps were no longer obvious from task numbering alone.
+
+### Consequences
+
+- Added `Zip/03_Build/Project Status Snapshot.md` as single source of truth for:
+  - current maturity level
+  - verified capabilities
+  - open risks
+  - immediate strategic direction
+- Added `Zip/03_Build/Roadmap - Milestone Execution Plan.md` with:
+  - Milestone A (Product Package lifecycle completion)
+  - Milestone B (Fallback policy lock)
+  - Milestone C (Integrated E2E operational verification)
+  - per-milestone scope / non-goals / done criteria
+- Updated active execution pointers:
+  - `Task Board.md` in-progress now references milestone execution
+  - `Agent Work Queue.md` active order now follows milestone sequence
+- Linked new docs from `AI Agent Operating Manual.md` to improve future handoff clarity.
+
+### Files Changed
+
+- `Zip/03_Build/Project Status Snapshot.md`
+- `Zip/03_Build/Roadmap - Milestone Execution Plan.md`
+- `Zip/03_Build/Task Board.md`
+- `Zip/03_Build/Agent Work Queue.md`
+- `Zip/01_Project/AI Agent Operating Manual.md`
+- `Zip/03_Build/Decision Log.md`
+
+## 2026-05-16 (Late Night)
+
+### Decision
+
+Start Milestone A implementation immediately with ProductPackage lifecycle persistence.
+
+### Context
+
+Roadmap direction for Milestone A required moving ProductPackage from create-only to full lifecycle operations without broad UI redesign.
+
+### Consequences
+
+- API extended at `apps/web/app/api/product-package/route.ts`:
+  - `PUT` for edit (`originalName`, `name`, `detail`)
+  - `PATCH` for activate/deactivate (`name`, `active`)
+- Role guard constant added:
+  - `ALLOWED_ROLES_PRODUCT_WRITE`
+- Master Product UI enhanced:
+  - per-card `Edit` button
+  - per-card `Activate/Deactivate` toggle
+  - inactive visual marker in card title
+- Product packet model now carries `active` state in app data layer:
+  - `ops-data.ts`
+  - `load-dashboard-data.ts`
+
+### Verification
+
+- `npm run build` => pass
+- `npm run verify:task24` => pass
+- `npm run verify:task27` => pass
+- direct API verification:
+  - `POST /api/product-package` => `201`
+  - `PUT /api/product-package` => `200`
+  - `PATCH /api/product-package` => `200`
+
+### Files Changed
+
+- `apps/web/lib/ops-data.ts`
+- `apps/web/lib/load-dashboard-data.ts`
+- `apps/web/lib/auth/role-guards.ts`
+- `apps/web/app/api/product-package/route.ts`
+- `apps/web/app/master-view.tsx`
+- `apps/web/app/operations-dashboard.tsx`
+- `Zip/03_Build/Task Board.md`
+- `Zip/03_Build/Project Status Snapshot.md`
+- `Zip/03_Build/Roadmap - Milestone Execution Plan.md`
+- `Zip/03_Build/Decision Log.md`
+
+## 2026-05-16 (Late Night)
+
+### Decision
+
+Close Milestone A by tightening ProductPackage lifecycle UX/policy fit and adding dedicated lifecycle verification.
+
+### Context
+
+Milestone A had core persistence in place, but still lacked:
+- active-only package selection in new order creation
+- a single milestone-specific verification command
+
+### Consequences
+
+- New order packet selector now lists only active packages.
+- Added verifier command:
+  - `npm run verify:milestoneA`
+  - script: `scripts/verify-milestone-a-product.mjs`
+  - validates create/edit/deactivate/activate plus DB state check
+- Updated status docs:
+  - Milestone A marked complete
+  - active target moved to Milestone B
+
+### Verification
+
+- `npm run build` => pass
+- `npm run verify:milestoneA` => pass
+- `npm run verify:task24` => pass
+
+### Files Changed
+
+- `apps/web/app/operations-dashboard.tsx`
+- `scripts/verify-milestone-a-product.mjs`
+- `package.json`
+- `README.md`
+- `Zip/03_Build/Task Board.md`
+- `Zip/03_Build/Project Status Snapshot.md`
+- `Zip/03_Build/Roadmap - Milestone Execution Plan.md`
+- `Zip/03_Build/Agent Work Queue.md`
+- `Zip/03_Build/Decision Log.md`
+
+
+## 2026-05-16 - Milestone B.1: Remove fake local success on Employee 503
+
+### Decision
+
+Lock Personnel create/edit to SQL-first behavior when DB is unavailable.
+
+### Context
+
+After Task 28.1, the employee modal still applied local state updates when `/api/employee` returned `503`, with an amber toast saying "saved on current page only". This behavior could mislead operators into believing writes were safely persisted.
+
+### Consequences
+
+- `operations-dashboard.tsx` no longer mutates `employees` on `503`.
+- UI now shows an explicit failure toast for DB-unavailable cases.
+- Reconciliation note updated to "completed" with final behavior.
+- Milestone B progress captured in Task Board.
+
+### Verification
+
+- `npm.cmd run verify:task26` => pass
+- `npm.cmd run verify:milestoneA` => pass
+
+### Files Changed
+
+- `apps/web/app/operations-dashboard.tsx`
+- `Zip/03_Build/Fallback Local-State Reconciliation.md`
+- `Zip/03_Build/Task Board.md`
+- `Zip/03_Build/Decision Log.md`

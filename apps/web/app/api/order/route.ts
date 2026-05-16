@@ -1,17 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ALLOWED_ROLES_ORDER_WRITE } from "../../../lib/auth/role-guards";
+import { createPrismaClient } from "../../../lib/prisma";
 
 async function getPrisma() {
-  const prismaImport = await import("@prisma/client");
-  const PrismaClientCtor =
-    (prismaImport as { PrismaClient?: new () => any }).PrismaClient ??
-    (prismaImport as { default?: { PrismaClient?: new () => any } }).default?.PrismaClient;
-
-  if (!PrismaClientCtor) {
-    throw new Error("Prisma client unavailable");
-  }
-
-  return new PrismaClientCtor();
+  return createPrismaClient();
 }
 
 function getRole(request: NextRequest): string | null {
@@ -248,17 +240,31 @@ export async function DELETE(request: NextRequest) {
       }
     }
 
-    await prisma.auditLog.create({
-      data: {
-        entityType: "Booking",
-        entityId: booking.id,
-        action: "booking.deleted",
-        beforeJson: JSON.stringify({ bookingNumber }),
-        afterJson: JSON.stringify(null)
-      }
-    });
+    await prisma.$transaction(async (tx) => {
+      await tx.auditLog.create({
+        data: {
+          entityType: "Booking",
+          entityId: booking.id,
+          action: "booking.deleted",
+          beforeJson: JSON.stringify({ bookingNumber }),
+          afterJson: JSON.stringify(null)
+        }
+      });
 
-    await prisma.booking.delete({ where: { id: booking.id } });
+      await tx.transportAssignment.deleteMany({
+        where: { bookingId: booking.id }
+      });
+
+      await tx.pickupStatusEvent.deleteMany({
+        where: { bookingId: booking.id }
+      });
+
+      await tx.staffAssignment.deleteMany({
+        where: { bookingId: booking.id }
+      });
+
+      await tx.booking.delete({ where: { id: booking.id } });
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {

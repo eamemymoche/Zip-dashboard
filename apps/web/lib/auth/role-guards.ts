@@ -8,6 +8,8 @@ export const ALLOWED_ROLES_TRANSPORT_WRITE: UserRole[] = ["ADMIN", "ACCOUNTING",
 export const ALLOWED_ROLES_PICKUP_WRITE: UserRole[] = ["ADMIN", "ACCOUNTING", "MANAGER", "STAFF"];
 export const ALLOWED_ROLES_STAFF_WRITE: UserRole[] = ["ADMIN", "ACCOUNTING", "MANAGER", "STAFF"];
 export const ALLOWED_ROLES_PERSONNEL_READ: UserRole[] = ["ADMIN", "MANAGER"];
+export const ALLOWED_ROLES_EMPLOYEE_WRITE: UserRole[] = ["ADMIN", "MANAGER"];
+export const ALLOWED_ROLES_PRODUCT_WRITE: UserRole[] = ["ADMIN", "ACCOUNTING", "MANAGER"];
 
 export const MODULE_ACCESS: Record<string, UserRole[]> = {
   overview: ["ADMIN", "ACCOUNTING", "MANAGER", "STAFF", "DRIVER"],

@@ -1,17 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ALLOWED_ROLES_TRANSPORT_WRITE } from "../../../lib/auth/role-guards";
+import { createPrismaClient } from "../../../lib/prisma";
 
 async function getPrisma() {
-  const prismaImport = await import("@prisma/client");
-  const PrismaClientCtor =
-    (prismaImport as { PrismaClient?: new () => any }).PrismaClient ??
-    (prismaImport as { default?: { PrismaClient?: new () => any } }).default?.PrismaClient;
-
-  if (!PrismaClientCtor) {
-    throw new Error("Prisma client unavailable");
-  }
-
-  return new PrismaClientCtor();
+  return createPrismaClient();
 }
 
 function getRole(request: NextRequest): string | null {

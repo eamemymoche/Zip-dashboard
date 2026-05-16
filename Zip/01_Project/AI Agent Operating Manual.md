@@ -101,6 +101,8 @@ Future agents must preserve the following truths while evolving the codebase:
 - [[Agent Command Template]]
 - [[Agent Work Queue]]
 - [[Agent Review Template]]
+- [[Project Status Snapshot]]
+- [[Roadmap - Milestone Execution Plan]]
 
 ## Recommended Working Order For Future Agents
 

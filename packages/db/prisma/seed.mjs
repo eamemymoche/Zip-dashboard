@@ -1,12 +1,16 @@
+import { config as loadEnv } from "dotenv";
 import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { createHash } from "crypto";
 
-const prisma = new PrismaClient();
+loadEnv({ path: ".env.local" });
+loadEnv();
 
-function hashPassword(password) {
-  const { createHash } = require("crypto");
-  const SESSION_SECRET = process.env.SESSION_SECRET ?? "dev-secret-change-in-production";
-  return createHash("sha256").update(password + SESSION_SECRET).digest("hex");
-}
+const prisma = new PrismaClient({
+  adapter: new PrismaPg({
+    connectionString: process.env.DATABASE_URL
+  })
+});
 
 const productPackages = [
   { name: "Extreme", detail: "Z38 + Luge + Swing + Transport", active: true },
@@ -125,6 +129,12 @@ const users = [
   { email: "owner@zipline.com", displayName: "Owner User", role: "ADMIN", password: "owner123" },
   { email: "accounting@zipline.com", displayName: "Accounting User", role: "ACCOUNTING", password: "accounting123" }
 ];
+
+const SESSION_SECRET = process.env.SESSION_SECRET ?? "dev-secret-change-in-production";
+
+function hashPassword(password) {
+  return createHash("sha256").update(password + SESSION_SECRET).digest("hex");
+}
 
 async function main() {
   for (const productPackage of productPackages) {

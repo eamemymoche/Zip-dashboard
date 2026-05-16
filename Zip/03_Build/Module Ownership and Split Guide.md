@@ -1,7 +1,7 @@
 # Module Ownership and Split Guide
 
 Status: Active
-Last updated: 2026-05-15
+Last updated: 2026-05-16
 
 ## Intent
 
@@ -26,6 +26,8 @@ The first safe split has already been started in the transport domain.
 - `C:\Users\Nuke\Desktop\Zip\apps\web\app\operations-dashboard.tsx`
   - still owns overall dashboard orchestration
   - owns top-level state, cross-module filters, modal state, and shared toast behavior
+  - **modal boundary decision (2026-05-16):** keep both `showOrderModal` and `showEmployeeModal` parent-owned for now
+  - reason: both modals still depend on parent-owned persistence callbacks, shared seed/master data, and cross-view orchestration state; moving them now would create more coupling than clarity
 
 - `C:\Users\Nuke\Desktop\Zip\apps\web\app\transport-assign-table.tsx`
   - owns the Transport > Assign table rendering
@@ -69,6 +71,37 @@ The first safe split has already been started in the transport domain.
   - uses `DatePicker` from `./date-picker`
   - props: `staffDate`, `staffTime`, `staffPacket`, `staffingOrders`, `staffMembers`, `initialData`, `onStaffDateChange`, `onStaffTimeChange`, `onStaffPacketChange`, `updateOrder`, `saveStaffAssignment`
 
+- `C:\Users\Nuke\Desktop\Zip\apps\web\app\staffing-board-view.tsx`
+  - owns the Staffing > Board rendering
+  - owns board date picker, slot columns, warning/no-show card rendering, and total-join footer per slot
+  - does not own persistence; receives already-shaped `boardOrders` from the parent dashboard
+  - uses `DatePicker` from `./date-picker`
+  - props: `boardDate`, `boardOrders`, `initialData`, `onBoardDateChange`
+
+- `C:\Users\Nuke\Desktop\Zip\apps\web\app\personnel-view.tsx`
+  - owns the Personnel dashboard rendering
+  - owns the Staff and Driver card grids, employee counts, expand/collapse detail panels, and top-right "new employee" action
+  - does not own persistence; receives employees, expanded employee state, and open/edit callbacks from the parent dashboard
+  - keeps modal state, employee form state, and employee submission logic centralized in `operations-dashboard.tsx`
+
+- `C:\Users\Nuke\Desktop\Zip\apps\web\app\master-view.tsx`
+  - owns the Master dashboard rendering
+  - owns the Master subnav plus `summary`, `pivot`, and `products` surfaces
+  - does not own persistence; receives `masterView`, `pivotGroupBy`, `pivotMap`, and parent callbacks via props
+  - keeps export toast behavior and parent-owned orchestration state centralized in `operations-dashboard.tsx`
+
+- `C:\Users\Nuke\Desktop\Zip\apps\web\app\order-detail-row.tsx`
+  - owns the expanded Order List detail row rendering
+  - owns both read-only detail layout and inline edit surface for one expanded booking row
+  - does not own persistence; receives edit state, status formatters, and parent callbacks for save/cancel/start-edit/delete
+  - keeps Order CRUD persistence, toast behavior, and conflict handling centralized in `operations-dashboard.tsx`
+
+- `C:\Users\Nuke\Desktop\Zip\apps\web\app\dashboard-selectors.ts`
+  - owns pure derived selectors and summary builders used by `operations-dashboard.tsx`
+  - includes filter/sort builders, slot capacity builders, staffing/transport/day selectors, pivot builders, and assistant context helpers
+  - must remain free of React state ownership, API calls, and side effects
+  - exists to reduce density in the orchestration file without changing behavior
+
 - `C:\Users\Nuke\Desktop\Zip\apps\web\app\api\auth\login\route.ts`
   - owns session auth: POST (login), GET (session), DELETE (logout)
   - issues httpOnly `zcc_session` cookie with HMAC-signed session token
@@ -80,13 +113,16 @@ The first safe split has already been started in the transport domain.
   - exposes `{ user, loading, refresh, logout }` to React component tree
   - `user` is `CurrentUser | null` (shape: `{ id, email, displayName, role }`)
   - `loading` is `true` during initial session fetch, `false` after resolution
-  - `refresh()` re-fetches session; `logout()` calls DELETE then redirects to `/login` via `window.location.href`
+  - `refresh()` re-fetches session; `logout()` calls DELETE then redirects to `/login` via `window.location.replace`
+  - uses `AbortController`, `cache: "no-store"`, and request sequencing so stale auth fetches cannot keep the UI in a loading loop
+  - refreshes auth state again on `pageshow` so browser back/forward cache cannot keep a stale logged-in dashboard alive after logout
 
 - `C:\Users\Nuke\Desktop\Zip\apps\web\app\providers.tsx`
   - wraps `AuthProvider` as a client component for Next.js app tree
 
 - `C:\Users\Nuke\Desktop\Zip\apps\web\app\login\page.tsx`
   - owns the login page (email + password form)
+  - uses `window.location.replace("/")` after successful login to avoid extra history entries during auth transitions
   - redirects to `/` on successful auth
 
 - `C:\Users\Nuke\Desktop\Zip\apps\web\proxy.ts`
@@ -173,9 +209,32 @@ Recommended next extractions:
 1. ~~Transport Recheck view~~ (done — extracted 2026-05-14)
 2. ~~Transport Sheet view~~ (done — extracted 2026-05-14)
 3. ~~Staffing Setup view~~ (done — extracted 2026-05-15)
-4. shared transport helpers / types
-5. Order List detail/editor surfaces
-6. Staffing Board (คงอยู่ใน Dashboard ตอนนี้ แต่ยังไม่แยก)
+4. ~~Staffing Board~~ (done - extracted 2026-05-16)
+5. ~~Personnel view~~ (done - extracted 2026-05-16)
+6. ~~Master view surfaces (`summary` / `pivot` / `products`)~~ (done - extracted 2026-05-16)
+7. ~~Order List detail/editor surfaces~~ (done - extracted 2026-05-16)
+8. ~~shared transport/order selectors/helpers~~ (done - extracted 2026-05-16)
+9. ~~modal boundary reassessment (order / employee)~~ (done - keep parent-owned, documented 2026-05-16)
+10. browser verification pass after the split sequence
+
+## Modal Ownership Rule
+
+Current intentional boundary:
+
+- `Order modal` stays in `operations-dashboard.tsx`
+- `Employee modal` stays in `operations-dashboard.tsx`
+
+Why this is the current recommended boundary:
+
+- the Order modal still depends on parent-owned Order CRUD persistence callbacks and shared packet/time-slot data
+- the Employee modal still depends on parent-owned create/edit mode, form reset behavior, and submission flow
+- both modals are opened from multiple render surfaces that were extracted only as view components
+
+Do not move either modal unless one of these becomes true:
+
+- the modal gets its own narrow persistence boundary
+- the parent orchestration file becomes significantly simpler as a direct result
+- the extraction does not blur ownership of submit/cancel/reset/conflict behavior
 
 ## Obsidian Rule
 

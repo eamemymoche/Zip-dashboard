@@ -23,7 +23,7 @@ BEGIN
     IF EXISTS (
         SELECT 1 FROM information_schema.columns
         WHERE table_name = 'User' AND column_name = 'role'
-        AND column_type = 'UserRole'::regtype
+        AND udt_name <> 'UserRole'
     ) THEN
         ALTER TABLE "User" ALTER COLUMN "role" TYPE "UserRole" USING "role"::text::"UserRole";
     END IF;

@@ -1,4 +1,5 @@
 import { createDashboardSeed, type DashboardSeed } from "./ops-data";
+import { createPrismaClient } from "./prisma";
 
 export async function loadDashboardData(): Promise<DashboardSeed> {
   const fallback = createDashboardSeed();
@@ -8,16 +9,7 @@ export async function loadDashboardData(): Promise<DashboardSeed> {
   }
 
   try {
-    const prismaImport = await import("@prisma/client");
-    const PrismaClientCtor =
-      (prismaImport as { PrismaClient?: new () => any }).PrismaClient ??
-      (prismaImport as { default?: { PrismaClient?: new () => any } }).default?.PrismaClient;
-
-    if (!PrismaClientCtor) {
-      return fallback;
-    }
-
-    const prisma = new PrismaClientCtor();
+    const prisma = createPrismaClient();
 
     const [bookings, employees, productPackages, vehicles] = await Promise.all([
       prisma.booking.findMany({
@@ -42,33 +34,36 @@ export async function loadDashboardData(): Promise<DashboardSeed> {
 
     await prisma.$disconnect();
 
-    if (!bookings.length) {
-      return fallback;
-    }
-
     return {
       timeSlots: fallback.timeSlots,
-      employees: employees.map((employee: any) => ({
-        id: employee.code,
-        name: employee.name,
-        nickname: employee.nickname ?? employee.name.split(" ")[0],
-        role: employee.role === "DRIVER" ? "Driver" : "Staff",
-        phone: employee.phone ?? "",
-        phone2: employee.phone2 ?? "",
-        startDate: employee.startDate ? new Date(employee.startDate).toISOString().slice(0, 10) : "",
-        photo: employee.photo ?? ""
-      })),
-      vehicles: vehicles.map((vehicle: any) => ({
-        code: vehicle.code,
-        type: vehicle.type ?? "",
-        capacity: vehicle.capacity ?? null,
-        active: vehicle.active,
-        notes: vehicle.notes ?? ""
-      })),
-      productPackets: productPackages.map((packet: any) => ({
-        name: packet.name,
-        detail: packet.detail
-      })),
+      employees: employees.length
+        ? employees.map((employee: any) => ({
+            id: employee.code,
+            name: employee.name,
+            nickname: employee.nickname ?? employee.name.split(" ")[0],
+            role: employee.role === "DRIVER" ? "Driver" : "Staff",
+            phone: employee.phone ?? "",
+            phone2: employee.phone2 ?? "",
+            startDate: employee.startDate ? new Date(employee.startDate).toISOString().slice(0, 10) : "",
+            photo: employee.photo ?? ""
+          }))
+        : fallback.employees,
+      vehicles: vehicles.length
+        ? vehicles.map((vehicle: any) => ({
+            code: vehicle.code,
+            type: vehicle.type ?? "",
+            capacity: vehicle.capacity ?? null,
+            active: vehicle.active,
+            notes: vehicle.notes ?? ""
+          }))
+        : fallback.vehicles,
+      productPackets: productPackages.length
+        ? productPackages.map((packet: any) => ({
+            name: packet.name,
+            detail: packet.detail,
+            active: packet.active
+          }))
+        : fallback.productPackets,
       orders: bookings.map((booking: any, index: number) => ({
         id: index + 1,
         date: booking.serviceDate.toISOString().slice(0, 10),

@@ -1,17 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "crypto";
+import { createPrismaClient } from "../../../../lib/prisma";
 
 async function getPrisma() {
-  const prismaImport = await import("@prisma/client");
-  const PrismaClientCtor =
-    (prismaImport as { PrismaClient?: new () => any }).PrismaClient ??
-    (prismaImport as { default?: { PrismaClient?: new () => any } }).default?.PrismaClient;
-
-  if (!PrismaClientCtor) {
-    throw new Error("Prisma client unavailable");
-  }
-
-  return new PrismaClientCtor();
+  return createPrismaClient();
 }
 
 const SESSION_COOKIE = "zcc_session";
@@ -53,6 +45,39 @@ export async function POST(request: NextRequest) {
 
   if (!email || !password) {
     return NextResponse.json({ error: "email and password are required" }, { status: 400 });
+  }
+
+  try {
+    const prisma = await getPrisma();
+    const user = await prisma.user.findUnique({ where: { email } });
+
+    if (user && user.passwordHash) {
+      const hash = hashPassword(password);
+      if (hash === user.passwordHash) {
+        const token = makeSessionToken(user.id, user.role);
+        const response = NextResponse.json({
+          user: { id: user.id, email: user.email, displayName: user.displayName, role: user.role }
+        });
+        response.cookies.set(SESSION_COOKIE, token, {
+          httpOnly: true,
+          sameSite: "lax",
+          path: "/",
+          maxAge: 60 * 60 * 8
+        });
+        response.cookies.set(SESSION_ROLE_COOKIE, user.role, {
+          httpOnly: true,
+          sameSite: "lax",
+          path: "/",
+          maxAge: 60 * 60 * 8
+        });
+        await prisma.$disconnect();
+        return response;
+      }
+    }
+
+    await prisma.$disconnect();
+  } catch (error) {
+    console.error("Login DB error:", error);
   }
 
   const devUser = DEV_AUTH_USERS.find(u => u.email === email && u.password === password);

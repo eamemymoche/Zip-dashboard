@@ -7,6 +7,27 @@ import { TransportAssignTable } from "./transport-assign-table";
 import { TransportRecheckTable } from "./transport-recheck-table";
 import { TransportSheetView } from "./transport-sheet-view";
 import StaffingSetupTable from "./staffing-setup-table";
+import StaffingBoardView from "./staffing-board-view";
+import PersonnelView from "./personnel-view";
+import MasterView from "./master-view";
+import OrderDetailRow from "./order-detail-row";
+import {
+  buildAssistantDriverLoads,
+  buildAssistantPriorityBookings,
+  buildBoardOrders,
+  buildCapacityCards,
+  buildDayOrders,
+  buildDriversInDay,
+  buildFilteredOrders,
+  buildPacketsInDay,
+  buildPivotMap,
+  buildRecheckOrders,
+  buildSelectedDriverOrders,
+  buildSelectedStaffWork,
+  buildSortedOrders,
+  buildStaffingOrders,
+  buildTransportOrders
+} from "./dashboard-selectors";
 import { useAuth } from "../lib/auth/auth-context";
 import * as XLSX from "xlsx";
 
@@ -14,14 +35,13 @@ import type {
   BookingStatus,
   DashboardSeed,
   EmployeeRecord,
-  OrderRecord,
-  ProductPacket
+  OrderRecord
 } from "../lib/ops-data";
 
 type MainView = "overview" | "orderlist" | "personnel" | "transport" | "staffing" | "master";
 type TransportView = "assign" | "recheck" | "sheet";
 type StaffingView = "setup" | "board" | "kpi";
-type MasterView = "summary" | "pivot" | "products";
+type MasterTab = "summary" | "pivot" | "products";
 
 function statusClass(status: string) {
   if (status === "BOARDED") return "status-boarded";
@@ -58,13 +78,19 @@ function formatStatus(status: string) {
   return status.replace("_", " ");
 }
 
-function countJoin(list: OrderRecord[]) {
-  return list.reduce((sum, order) => sum + order.join, 0);
-}
-
-function countPax(list: OrderRecord[]) {
-  return list.reduce((sum, order) => sum + order.join + order.visitor, 0);
-}
+type OrderEditForm = {
+  booking: string;
+  agent: string;
+  packet: string;
+  date: string;
+  time: string;
+  name: string;
+  phone: string;
+  hotel: string;
+  room: string;
+  join: string;
+  visitor: string;
+};
 
 function navIcon(key: MainView) {
   const common = { viewBox: "0 0 24 24", width: 18, height: 18, fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
@@ -92,11 +118,11 @@ export function OperationsDashboard({ initialData }: { initialData: DashboardSee
   const userRole = user?.role ?? null;
   const [orders, setOrders] = useState(initialData.orders);
   const [employees, setEmployees] = useState(initialData.employees);
-  const [productPackets] = useState(initialData.productPackets);
+  const [productPackets, setProductPackets] = useState(initialData.productPackets);
   const [mainView, setMainView] = useState<MainView>("orderlist");
   const [transportView, setTransportView] = useState<TransportView>("assign");
   const [staffingView, setStaffingView] = useState<StaffingView>("setup");
-  const [masterView, setMasterView] = useState<MasterView>("summary");
+  const [masterView, setMasterView] = useState<MasterTab>("summary");
   const [orderDateStart, setOrderDateStart] = useState("2026-05-12");
   const [orderDateEnd, setOrderDateEnd] = useState("2026-05-12");
   const [orderSearch, setOrderSearch] = useState("");
@@ -120,19 +146,7 @@ export function OperationsDashboard({ initialData }: { initialData: DashboardSee
   const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null);
   const [expandedEmployeeId, setExpandedEmployeeId] = useState<string | null>(null);
   const [editingOrderId, setEditingOrderId] = useState<number | null>(null);
-  const [editForm, setEditForm] = useState<{
-    booking: string;
-    agent: string;
-    packet: string;
-    date: string;
-    time: string;
-    name: string;
-    phone: string;
-    hotel: string;
-    room: string;
-    join: string;
-    visitor: string;
-  } | null>(null);
+  const [editForm, setEditForm] = useState<OrderEditForm | null>(null);
   const [orderSortField, setOrderSortField] = useState<string>("");
   const [orderSortDir, setOrderSortDir] = useState<"asc" | "desc">("asc");
   const [assignSortField, setAssignSortField] = useState<string>("");
@@ -153,6 +167,12 @@ export function OperationsDashboard({ initialData }: { initialData: DashboardSee
     }, 60000);
     return () => clearInterval(tick);
   }, []);
+
+  useEffect(() => {
+    if (!loading && !user) {
+      window.location.replace("/login?from=/");
+    }
+  }, [loading, user]);
 
   const [newOrder, setNewOrder] = useState({
     date: "2026-05-12",
@@ -181,45 +201,18 @@ export function OperationsDashboard({ initialData }: { initialData: DashboardSee
   const drivers = employees.filter((employee) => employee.role === "Driver");
   const driverNames = drivers.map((employee) => employee.name);
   const staffMembers = employees.filter((employee) => employee.role === "Staff");
+  const activeProductPackets = productPackets.filter((packet) => packet.active);
   const vehicles = initialData.vehicles;
 
-  const filteredOrders = orders.filter((order) => {
-    const query = orderSearch.trim().toLowerCase();
-    const startOk = !orderDateStart || order.date >= orderDateStart;
-    const endOk = !orderDateEnd || order.date <= orderDateEnd;
-    const matchesDate = startOk && endOk;
-    const matchesSlot = selectedTimeSlots.length === 0 || selectedTimeSlots.includes(order.time);
-    const searchable = [
-      order.name,
-      order.booking,
-      order.phone,
-      order.agent,
-      order.hotel,
-      order.packet
-    ]
-      .join(" ")
-      .toLowerCase();
+  const filteredOrders = buildFilteredOrders(
+    orders,
+    orderDateStart,
+    orderDateEnd,
+    orderSearch,
+    selectedTimeSlots
+  );
 
-    return matchesDate && matchesSlot && (!query || searchable.includes(query));
-  });
-
-  const sortedOrders = [...filteredOrders].sort((a, b) => {
-    let cmp = 0;
-    switch (orderSortField) {
-      case "id": cmp = a.id - b.id; break;
-      case "date": cmp = a.date.localeCompare(b.date); break;
-      case "time": cmp = a.time.localeCompare(b.time); break;
-      case "agent": cmp = a.agent.localeCompare(b.agent); break;
-      case "booking": cmp = a.booking.localeCompare(b.booking); break;
-      case "packet": cmp = a.packet.localeCompare(b.packet); break;
-      case "name": cmp = a.name.localeCompare(b.name); break;
-      case "pax": cmp = (a.join + a.visitor) - (b.join + b.visitor); break;
-      case "join": cmp = a.join - b.join; break;
-      case "hotel": cmp = a.hotel.localeCompare(b.hotel); break;
-      default: cmp = a.id - b.id;
-    }
-    return orderSortDir === "asc" ? cmp : -cmp;
-  });
+  const sortedOrders = buildSortedOrders(filteredOrders, orderSortField, orderSortDir);
 
   function exportCSV(data: Record<string, string>[], filename: string) {
     const headers = Object.keys(data[0] ?? {});
@@ -388,93 +381,31 @@ export function OperationsDashboard({ initialData }: { initialData: DashboardSee
     return recheckSortDir === "asc" ? " ↑" : " ↓";
   }
 
-  const getSlotState = (slot: string): "past" | "current" | "next" | "upcoming" => {
-    const slotHour = parseInt(slot.split(":")[0]);
-    if (currentHour > slotHour) return "past";
-    if (currentHour === slotHour) return "current";
-    if (currentHour === slotHour - 1) return "next";
-    return "upcoming";
-  };
-
-  const capacityCards = initialData.timeSlots.map((slot) => {
-    const list = orders.filter(
-      (order) =>
-        order.date === orderDateStart &&
-        order.time === slot &&
-        order.boarding !== "NO_SHOW" &&
-        order.boarding !== "CANCELLED"
-    );
-
-    return {
-      slot,
-      pax: countPax(list),
-      join: countJoin(list),
-      state: getSlotState(slot)
-    };
-  });
-
-  const baseTransportOrders = orders.filter(
-    (order) =>
-      order.date === transportDate && (transportTime === "ALL" || order.time === transportTime)
+  const capacityCards = buildCapacityCards(orders, initialData.timeSlots, orderDateStart, currentHour);
+  const transportOrders = buildTransportOrders(orders, transportDate, transportTime, assignSortField, assignSortDir);
+  const dayOrders = buildDayOrders(orders, transportDate);
+  const driversInDay = buildDriversInDay(dayOrders);
+  const recheckOrders = buildRecheckOrders(
+    dayOrders,
+    recheckDriverFilter,
+    recheckStatusFilter,
+    recheckSortField,
+    recheckSortDir
   );
-  const sortedTransportOrders = [...baseTransportOrders].sort((a, b) => {
-    let cmp = 0;
-    switch (assignSortField) {
-      case "time": cmp = a.time.localeCompare(b.time); break;
-      case "hotel": cmp = a.hotel.localeCompare(b.hotel); break;
-      case "pax": cmp = (a.join + a.visitor) - (b.join + b.visitor); break;
-      default: cmp = a.time.localeCompare(b.time);
-    }
-    return assignSortDir === "asc" ? cmp : -cmp;
-  });
-  const transportOrders = sortedTransportOrders;
-  const dayOrders = orders.filter((order) => order.date === transportDate);
-  const driversInDay = [...new Set(dayOrders.filter((order) => order.driver).map((order) => order.driver))];
-  const baseRecheckOrders = dayOrders.filter(
-    (order) =>
-      (recheckDriverFilter === "ALL" || order.driver === recheckDriverFilter) &&
-      (recheckStatusFilter === "ALL" || order.boarding === recheckStatusFilter)
-  );
-  const sortedRecheckOrders = [...baseRecheckOrders].sort((a, b) => {
-    let cmp = 0;
-    switch (recheckSortField) {
-      case "time": cmp = a.time.localeCompare(b.time); break;
-      case "hotel": cmp = a.hotel.localeCompare(b.hotel); break;
-      case "status": cmp = a.boarding.localeCompare(b.boarding); break;
-      default: cmp = a.time.localeCompare(b.time);
-    }
-    return recheckSortDir === "asc" ? cmp : -cmp;
-  });
-  const recheckOrders = sortedRecheckOrders;
-  const packetsInDay = [...new Set(orders.filter((order) => order.date === staffDate).map((order) => order.packet))];
-  const staffingOrders = orders.filter((order) => {
-    if (order.date !== staffDate) return false;
-    if (staffTime !== "ALL" && order.time !== staffTime) return false;
-    if (staffPacket !== "ALL" && order.packet !== staffPacket) return false;
-    return true;
-  });
-  const boardOrders = orders.filter((order) => order.date === boardDate);
-  const selectedDriverOrders = orders.filter(
-    (order) => order.date === transportDate && order.driver === selectedDriver && order.time === selectedSheetSlot
+  const packetsInDay = buildPacketsInDay(orders, staffDate);
+  const staffingOrders = buildStaffingOrders(orders, staffDate, staffTime, staffPacket);
+  const boardOrders = buildBoardOrders(orders, boardDate);
+  const selectedDriverOrders = buildSelectedDriverOrders(
+    orders,
+    transportDate,
+    selectedDriver,
+    selectedSheetSlot
   );
 
-  const pivotMap = orders
-    .filter((order) => order.boarding !== "NO_SHOW" && order.boarding !== "CANCELLED")
-    .reduce<Record<string, { bookings: number; pax: number; join: number }>>((map, order) => {
-      const key = pivotGroupBy === "agent" ? order.agent : order.packet;
-      if (!map[key]) {
-        map[key] = { bookings: 0, pax: 0, join: 0 };
-      }
-      map[key].bookings += 1;
-      map[key].pax += order.join + order.visitor;
-      map[key].join += order.join;
-      return map;
-    }, {});
+  const pivotMap = buildPivotMap(orders, pivotGroupBy);
 
   const selectedStaffName = staffMembers[0]?.name ?? "";
-  const selectedStaffWork = orders.filter(
-    (order) => order.assignedStaff.includes(selectedStaffName) && order.boarding === "BOARDED"
-  );
+  const selectedStaffWork = buildSelectedStaffWork(orders, selectedStaffName);
   const assistantFocusDate =
     mainView === "transport"
       ? transportDate
@@ -513,39 +444,13 @@ export function OperationsDashboard({ initialData }: { initialData: DashboardSee
           : mainView === "personnel"
             ? "ฐานข้อมูลบุคลากร"
             : "Order List";
-  const assistantDriverLoads = employees
-    .filter((employee) => employee.role === "Driver")
-    .map((employee) => {
-      const relatedOrders = orders.filter(
-        (order) => order.date === assistantFocusDate && order.driver === employee.name
-      );
-
-      return {
-        driver: employee.name,
-        trips: relatedOrders.length,
-        pax: relatedOrders.reduce((sum, order) => sum + order.join + order.visitor, 0)
-      };
-    })
-    .filter((driver) => driver.trips > 0)
-    .sort((left, right) => right.trips - left.trips)
-    .slice(0, 5);
-  const assistantPriorityBookings = orders
-    .filter((order) => order.date === assistantFocusDate)
-    .filter(
-      (order) =>
-        order.boarding === "NO_SHOW" ||
-        order.boarding === "WAITING" ||
-        (mainView === "transport" && !order.driver)
-    )
-    .slice(0, 6)
-    .map((order) => ({
-      booking: order.booking,
-      customer: order.name,
-      hotel: order.hotel,
-      slot: order.time,
-      status: formatStatus(order.boarding),
-      note: order.adminNote
-    }));
+  const assistantDriverLoads = buildAssistantDriverLoads(orders, employees, assistantFocusDate);
+  const assistantPriorityBookings = buildAssistantPriorityBookings(
+    orders,
+    assistantFocusDate,
+    mainView,
+    formatStatus
+  );
   const assistantContext = {
     activeModule: assistantActiveModule,
     focusDate: assistantFocusDate,
@@ -751,10 +656,17 @@ async function saveEditOrder() {
     }
   }
 
-  function cancelEditOrder() {
-    setEditingOrderId(null);
-    setEditForm(null);
-  }
+function cancelEditOrder() {
+  setEditingOrderId(null);
+  setEditForm(null);
+}
+
+function updateEditFormField(
+  field: keyof OrderEditForm,
+  value: string
+) {
+  setEditForm((current) => (current ? { ...current, [field]: value } : current));
+}
 
 async function deleteOrder(id: number) {
     if (!confirm("ยืนยันการลบ?")) return;
@@ -853,7 +765,7 @@ async function handleNewOrderSubmit(event: React.FormEvent<HTMLFormElement>) {
     }
   }
 
-  function handleEmployeeSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleEmployeeSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!newEmployee.id || !newEmployee.name) {
       return;
@@ -870,16 +782,47 @@ async function handleNewOrderSubmit(event: React.FormEvent<HTMLFormElement>) {
       photo: newEmployee.photo
     };
 
-    if (editingEmployeeId) {
-      setEmployees((current) => current.map((e) => (e.id === editingEmployeeId ? empData : e)));
-      setEditingEmployeeId(null);
-      showToast("แก้ไขข้อมูลสำเร็จ", "indigo");
-    } else {
-      setEmployees((current) => [...current, empData]);
-      showToast("เพิ่มพนักงานสำเร็จ", "indigo");
+    try {
+      const response = await fetch("/api/employee", {
+        method: editingEmployeeId ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(empData)
+      });
+
+      if (response.status === 409) {
+        showToast("รหัสพนักงานนี้มีอยู่แล้ว", "red");
+        return;
+      }
+
+      if (response.status === 403) {
+        showToast("ไม่มีสิทธิ์แก้ไขข้อมูลบุคลากร", "red");
+        return;
+      }
+
+      if (response.status === 503) {
+        showToast("ฐานข้อมูลไม่พร้อมใช้งาน: ยังไม่สามารถบันทึกบุคลากรได้", "red");
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error("save employee failed");
+      }
+
+      const saved = await response.json();
+      if (editingEmployeeId) {
+        setEmployees((current) => current.map((e) => (e.id === editingEmployeeId ? saved : e)));
+        setEditingEmployeeId(null);
+        showToast("แก้ไขข้อมูลสำเร็จ", "indigo");
+      } else {
+        setEmployees((current) => [...current, saved]);
+        showToast("เพิ่มพนักงานสำเร็จ", "indigo");
+      }
+
+      setShowEmployeeModal(false);
+      resetEmployeeForm();
+    } catch {
+      showToast("บันทึกข้อมูลบุคลากรไม่สำเร็จ", "red");
     }
-    setShowEmployeeModal(false);
-    resetEmployeeForm();
   }
 
   function openEditEmployeeModal(emp: EmployeeRecord) {
@@ -922,7 +865,135 @@ async function handleNewOrderSubmit(event: React.FormEvent<HTMLFormElement>) {
     setTimeout(() => document.body.classList.remove("print-job-sheet"), 300);
   }
 
-  if (loading) {
+  async function addProductPacket() {
+    const nameInput = window.prompt("ชื่อแพ็กเกจใหม่");
+    if (!nameInput) return;
+    const detailInput = window.prompt("รายละเอียดแพ็กเกจ");
+    if (!detailInput) return;
+
+    const name = nameInput.trim();
+    const detail = detailInput.trim();
+    if (!name || !detail) {
+      showToast("กรุณากรอกชื่อและรายละเอียดแพ็กเกจ", "red");
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/product-package", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, detail })
+      });
+
+      if (response.status === 403) {
+        showToast("ไม่มีสิทธิ์เพิ่มแพ็กเกจ", "red");
+        return;
+      }
+      if (response.status === 409) {
+        showToast("ชื่อแพ็กเกจนี้มีอยู่แล้ว", "red");
+        return;
+      }
+      if (response.status === 503) {
+        showToast("ฐานข้อมูลไม่พร้อมใช้งาน: ยังไม่สามารถเพิ่มแพ็กเกจได้", "red");
+        return;
+      }
+      if (!response.ok) {
+        throw new Error("save packet failed");
+      }
+
+      const created = await response.json();
+      setProductPackets((current) => [...current, created]);
+      showToast("เพิ่มแพ็กเกจสำเร็จ", "emerald");
+    } catch {
+      showToast("เพิ่มแพ็กเกจไม่สำเร็จ", "red");
+    }
+  }
+
+  async function editProductPacket(packet: { name: string; detail: string; active: boolean }) {
+    const nextNameRaw = window.prompt("แก้ชื่อแพ็กเกจ", packet.name);
+    if (nextNameRaw === null) return;
+    const nextDetailRaw = window.prompt("แก้รายละเอียดแพ็กเกจ", packet.detail);
+    if (nextDetailRaw === null) return;
+
+    const nextName = nextNameRaw.trim();
+    const nextDetail = nextDetailRaw.trim();
+    if (!nextName || !nextDetail) {
+      showToast("กรุณากรอกชื่อและรายละเอียดแพ็กเกจ", "red");
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/product-package", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ originalName: packet.name, name: nextName, detail: nextDetail })
+      });
+
+      if (response.status === 403) {
+        showToast("ไม่มีสิทธิ์แก้ไขแพ็กเกจ", "red");
+        return;
+      }
+      if (response.status === 404) {
+        showToast("ไม่พบแพ็กเกจที่ต้องการแก้ไข", "red");
+        return;
+      }
+      if (response.status === 409) {
+        showToast("ชื่อแพ็กเกจซ้ำ", "red");
+        return;
+      }
+      if (response.status === 503) {
+        showToast("ฐานข้อมูลไม่พร้อมใช้งาน", "red");
+        return;
+      }
+      if (!response.ok) {
+        throw new Error("update packet failed");
+      }
+
+      const updated = await response.json();
+      setProductPackets((current) =>
+        current.map((p) => (p.name === packet.name ? updated : p))
+      );
+      showToast("แก้ไขแพ็กเกจสำเร็จ", "emerald");
+    } catch {
+      showToast("แก้ไขแพ็กเกจไม่สำเร็จ", "red");
+    }
+  }
+
+  async function toggleProductPacketActive(packet: { name: string; detail: string; active: boolean }) {
+    try {
+      const response = await fetch("/api/product-package", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: packet.name, active: !packet.active })
+      });
+
+      if (response.status === 403) {
+        showToast("ไม่มีสิทธิ์เปลี่ยนสถานะแพ็กเกจ", "red");
+        return;
+      }
+      if (response.status === 404) {
+        showToast("ไม่พบแพ็กเกจ", "red");
+        return;
+      }
+      if (response.status === 503) {
+        showToast("ฐานข้อมูลไม่พร้อมใช้งาน", "red");
+        return;
+      }
+      if (!response.ok) {
+        throw new Error("toggle packet failed");
+      }
+
+      const updated = await response.json();
+      setProductPackets((current) =>
+        current.map((p) => (p.name === packet.name ? updated : p))
+      );
+      showToast(updated.active ? "เปิดใช้งานแพ็กเกจแล้ว" : "ปิดใช้งานแพ็กเกจแล้ว", "emerald");
+    } catch {
+      showToast("เปลี่ยนสถานะแพ็กเกจไม่สำเร็จ", "red");
+    }
+  }
+
+if (loading) {
     return (
       <div className="app-shell" style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100vh", background: "#0f172a", color: "#94a3b8" }}>
         <div style={{ textAlign: "center" }}>
@@ -931,6 +1002,11 @@ async function handleNewOrderSubmit(event: React.FormEvent<HTMLFormElement>) {
         </div>
       </div>
     );
+  }
+
+  if (!user) {
+    window.location.href = "/login";
+    return null;
   }
 
   return (
@@ -1252,108 +1328,20 @@ async function handleNewOrderSubmit(event: React.FormEvent<HTMLFormElement>) {
                         <td>{order.hotel}</td>
                       </tr>
                       {expandedOrderId === order.id ? (
-                        <tr className="order-detail-row" key={`${order.id}-detail`}>
-                          <td colSpan={10}>
-                            <div className="order-detail-panel">
-                              {editingOrderId === order.id && editForm ? (
-                                <div className="detail-grid">
-                                  <div className="detail-item">
-                                    <span className="detail-label">Booking No.</span>
-                                    <input className="order-edit-input" value={editForm.booking} onChange={(e) => setEditForm(f => f ? ({ ...f, booking: e.target.value }) : f)} />
-                                  </div>
-                                  <div className="detail-item">
-                                    <span className="detail-label">Agent</span>
-                                    <input className="order-edit-input" value={editForm.agent} onChange={(e) => setEditForm(f => f ? ({ ...f, agent: e.target.value }) : f)} />
-                                  </div>
-                                  <div className="detail-item">
-                                    <span className="detail-label">Packet</span>
-                                    <input className="order-edit-input" value={editForm.packet} onChange={(e) => setEditForm(f => f ? ({ ...f, packet: e.target.value }) : f)} />
-                                  </div>
-                                  <div className="detail-item">
-                                    <span className="detail-label">วันที่ / รอบ</span>
-                                    <div style={{display:"flex", gap:"8px"}}>
-                                      <input className="order-edit-input" style={{width:"110px"}} value={editForm.date} onChange={(e) => setEditForm(f => f ? ({ ...f, date: e.target.value }) : f)} />
-                                      <input className="order-edit-input" style={{width:"70px"}} value={editForm.time} onChange={(e) => setEditForm(f => f ? ({ ...f, time: e.target.value }) : f)} />
-                                    </div>
-                                  </div>
-                                  <div className="detail-item">
-                                    <span className="detail-label">ลูกค้า</span>
-                                    <input className="order-edit-input" value={editForm.name} onChange={(e) => setEditForm(f => f ? ({ ...f, name: e.target.value }) : f)} />
-                                  </div>
-                                  <div className="detail-item">
-                                    <span className="detail-label">เบอร์โทร</span>
-                                    <input className="order-edit-input" value={editForm.phone} onChange={(e) => setEditForm(f => f ? ({ ...f, phone: e.target.value }) : f)} />
-                                  </div>
-                                  <div className="detail-item">
-                                    <span className="detail-label">โรงแรม / ห้อง</span>
-                                    <div style={{display:"flex", gap:"8px"}}>
-                                      <input className="order-edit-input" style={{width:"100px"}} value={editForm.hotel} onChange={(e) => setEditForm(f => f ? ({ ...f, hotel: e.target.value }) : f)} />
-                                      <input className="order-edit-input" style={{width:"60px"}} value={editForm.room} onChange={(e) => setEditForm(f => f ? ({ ...f, room: e.target.value }) : f)} />
-                                    </div>
-                                  </div>
-                                  <div className="detail-item">
-                                    <span className="detail-label">Pax / Join</span>
-                                    <div style={{display:"flex", gap:"8px"}}>
-                                      <input className="order-edit-input" style={{width:"50px"}} value={editForm.join} onChange={(e) => setEditForm(f => f ? ({ ...f, join: e.target.value }) : f)} />
-                                      <input className="order-edit-input" style={{width:"50px"}} value={editForm.visitor} onChange={(e) => setEditForm(f => f ? ({ ...f, visitor: e.target.value }) : f)} />
-                                    </div>
-                                  </div>
-                                  <div className="detail-item">
-                                    <span className="detail-label">คนขับ</span>
-                                    <strong style={{color:"var(--muted)"}}>{order.driver || "ยังไม่จัด"}</strong>
-                                  </div>
-                                  <div className="detail-item">
-                                    <span className="detail-label">สถานะ</span>
-                                    <span className={`status-badge ${statusClass(order.boarding)}`}>{formatStatus(order.boarding)}</span>
-                                  </div>
-                                  <div className="detail-item full">
-                                    <span className="detail-label">Staff ที่จัด</span>
-                                    <strong style={{color:"var(--muted)"}}>{order.assignedStaff.join(", ") || "ยังไม่จัด"}</strong>
-                                  </div>
-                                  {order.adminNote ? (
-                                    <div className="detail-item full">
-                                      <span className="detail-label">Note</span>
-                                      <em className="note-text">{order.adminNote}</em>
-                                    </div>
-                                  ) : null}
-                                  <div className="detail-item full" style={{display:"flex",justifyContent:"flex-end",gap:"10px",marginTop:"16px"}}>
-                                    <button className="secondary-button" style={{padding:"9px 16px"}} onClick={cancelEditOrder} type="button">ยกเลิก</button>
-                                    <button className="primary-button" style={{padding:"9px 16px"}} onClick={saveEditOrder} type="button">บันทึก</button>
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="detail-grid">
-                                  <div className="detail-item"><span className="detail-label">Booking No.</span><strong>{order.booking}</strong></div>
-                                  <div className="detail-item"><span className="detail-label">Agent</span><strong>{order.agent}</strong></div>
-                                  <div className="detail-item"><span className="detail-label">Packet</span><strong>{order.packet}</strong></div>
-                                  <div className="detail-item"><span className="detail-label">วันที่ / รอบ</span><strong>{order.date} / {order.time}</strong></div>
-                                  <div className="detail-item"><span className="detail-label">ลูกค้า</span><strong>{order.name}</strong></div>
-                                  <div className="detail-item"><span className="detail-label">เบอร์โทร</span><strong>{order.phone}</strong></div>
-                                  <div className="detail-item"><span className="detail-label">โรงแรม / ห้อง</span><strong>{order.hotel} ({order.room})</strong></div>
-                                  <div className="detail-item"><span className="detail-label">Pax / Join</span><strong>{order.join + order.visitor} / {order.join}</strong></div>
-                                  <div className="detail-item"><span className="detail-label">คนขับ</span><strong>{order.driver || "ยังไม่จัด"}</strong></div>
-                                  <div className="detail-item"><span className="detail-label">Staff ที่จัด</span><strong style={{color:"var(--muted)"}}>{order.assignedStaff.join(", ") || "ยังไม่จัด"}</strong></div>
-                                  <div className="detail-item full detail-item-status-inline">
-                                    {order.adminNote ? (
-                                      <div className="detail-note-inline">
-                                        <span className="detail-label">Note</span>
-                                        <em className="note-text">{order.adminNote}</em>
-                                      </div>
-                                    ) : null}
-                                    <div className="detail-status-group">
-                                      <span className="detail-status-title">สถานะ</span>
-                                      <span className={`status-badge ${statusClass(order.boarding)}`}>{formatStatus(order.boarding)}</span>
-                                    </div>
-                                    <div className="detail-actions">
-<button className="indigo-button" onClick={() => startEditOrder(order)} disabled={userRole === "STAFF" || userRole === "DRIVER"} title={userRole === "STAFF" || userRole === "DRIVER" ? "ไม่มีสิทธิ์แก้ไข" : ""} type="button">แก้ไข</button>
-                                      <button className="btn-danger" onClick={() => deleteOrder(order.id)} disabled={userRole === "STAFF" || userRole === "DRIVER"} title={userRole === "STAFF" || userRole === "DRIVER" ? "ไม่มีสิทธิ์ลบ" : ""} type="button">ลบ</button>
-                                    </div>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          </td>
-                          </tr>
+                        <OrderDetailRow
+                          key={`${order.id}-detail`}
+                          order={order}
+                          isEditing={editingOrderId === order.id}
+                          editForm={editForm}
+                          userRole={userRole}
+                          formatStatus={formatStatus}
+                          statusClass={statusClass}
+                          onEditFieldChange={updateEditFormField}
+                          onCancelEdit={cancelEditOrder}
+                          onSaveEdit={saveEditOrder}
+                          onStartEdit={startEditOrder}
+                          onDelete={deleteOrder}
+                        />
                         ) : null}
                       </Fragment>
                     ))}
@@ -1473,58 +1461,12 @@ async function handleNewOrderSubmit(event: React.FormEvent<HTMLFormElement>) {
             ) : null}
 
             {staffingView === "board" ? (
-              <>
-                <div className="board-header-shell">
-                  <h3>SKYLINE STAFF WHITEBOARD</h3>
-                  <DatePicker
-                    value={boardDate}
-                    onChange={(v) => setBoardDate(v)}
-                    style={{fontSize:"13px"}}
-                  />
-                </div>
-                <div className="staff-board-grid">
-                  {initialData.timeSlots.map((slot) => {
-                    const slotOrders = boardOrders.filter((order) => order.time === slot);
-                    return (
-                      <div className="board-column" key={slot}>
-                        <div className="board-column-header">{slot}</div>
-                        <div className="board-column-body">
-                          {slotOrders.map((order) => (
-                            <div
-                              className={
-                                order.boarding === "NO_SHOW"
-                                  ? "board-card no-show"
-                                  : order.assignedStaff.length < 2
-                                    ? "board-card warning"
-                                    : "board-card"
-                              }
-                              key={order.id}
-                            >
-                              <div className="board-card-top">
-                                <span>{order.name.split(" ").slice(-1)[0]}</span>
-                                <span>{order.join} J</span>
-                              </div>
-                              {order.boarding === "NO_SHOW" ? (
-                                <div className="board-alert">--- NO SHOW ---</div>
-                              ) : (
-                                <div className="board-staff-line">
-                                  {order.assignedStaff.join(" / ") || "-- รอจัด --"}
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                        <div className="board-footer">
-                          Total Join:{" "}
-                          {slotOrders
-                            .filter((order) => order.boarding !== "NO_SHOW")
-                            .reduce((sum, order) => sum + order.join, 0)}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </>
+              <StaffingBoardView
+                boardDate={boardDate}
+                boardOrders={boardOrders}
+                initialData={initialData}
+                onBoardDateChange={setBoardDate}
+              />
             ) : null}
 
             {staffingView === "kpi" ? (
@@ -1550,266 +1492,33 @@ async function handleNewOrderSubmit(event: React.FormEvent<HTMLFormElement>) {
       ) : null}
 
       {mainView === "personnel" ? (
-        <section className="view-section">
-          <div className="glass-card">
-            <div className="section-header">
-              <div>
-                <h2>{t("personnel.title")}</h2>
-                <p>{employees.length} คน ({employees.filter(e=>e.role==="Staff").length} ไกด์สนาม / {employees.filter(e=>e.role==="Driver").length} คนขับรถ)</p>
-              </div>
-              <button className="indigo-button" onClick={() => setShowEmployeeModal(true)} type="button">
-                {t("personnel.newEmployee")}
-              </button>
-            </div>
-
-            <div className="personnel-section">
-              <div className="personnel-section-header">
-                <span className="personnel-section-icon">🧑‍💼</span>
-                <h3>ไกด์สนาม (Staff)</h3>
-                <span className="personnel-count">{employees.filter(e=>e.role==="Staff").length}</span>
-              </div>
-              <div className="personnel-card-grid">
-                {employees.filter(e=>e.role==="Staff").map(emp => (
-                  <div key={emp.id} className="personnel-card">
-                    <div className="personnel-card-main" onClick={() => setExpandedEmployeeId(expandedEmployeeId === emp.id ? null : emp.id)}>
-                      <div className="personnel-avatar-wrap">
-                        {emp.photo ? (
-                          <img src={emp.photo} alt={emp.name} className="personnel-avatar" />
-                        ) : (
-                          <div className="personnel-avatar-placeholder">
-                            {emp.name.charAt(0)}
-                          </div>
-                        )}
-                        <span className="personnel-role-dot staff-dot" />
-                      </div>
-                      <div className="personnel-info">
-                        <div className="personnel-name">{emp.name} <span className="personnel-nickname">({emp.nickname})</span></div>
-                        <div className="personnel-id-code">{emp.id}</div>
-                        <div className="personnel-quick-contact">
-                          {emp.phone && <span>📞 {emp.phone}</span>}
-                        </div>
-                      </div>
-                      <div className="personnel-expand-hint">{expandedEmployeeId === emp.id ? "−" : "+"}</div>
-                    </div>
-                    {expandedEmployeeId === emp.id && (
-                      <div className="personnel-detail-panel">
-                        <div className="personnel-detail-grid">
-                          <div className="pd-item"><span className="pd-label">ชื่อเล่น</span><strong>{emp.nickname}</strong></div>
-                          <div className="pd-item"><span className="pd-label">เบอร์หลัก</span><strong>{emp.phone || "-"}</strong></div>
-                          <div className="pd-item"><span className="pd-label">เบอร์สำรอง</span><strong>{emp.phone2 || "-"}</strong></div>
-                          <div className="pd-item"><span className="pd-label">วันเข้าทำงาน</span><strong>{emp.startDate || "-"}</strong></div>
-                        </div>
-                        <button
-                          className="indigo-button"
-                          style={{marginTop:"12px", width:"100%"}}
-                          type="button"
-                          onClick={() => openEditEmployeeModal(emp)}
-                        >
-                          แก้ไขข้อมูล
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="personnel-section" style={{marginTop:"24px"}}>
-              <div className="personnel-section-header">
-                <span className="personnel-section-icon">🚌</span>
-                <h3>คนขับรถ (Driver)</h3>
-                <span className="personnel-count">{employees.filter(e=>e.role==="Driver").length}</span>
-              </div>
-              <div className="personnel-card-grid">
-                {employees.filter(e=>e.role==="Driver").map(emp => (
-                  <div key={emp.id} className="personnel-card">
-                    <div className="personnel-card-main" onClick={() => setExpandedEmployeeId(expandedEmployeeId === emp.id ? null : emp.id)}>
-                      <div className="personnel-avatar-wrap">
-                        {emp.photo ? (
-                          <img src={emp.photo} alt={emp.name} className="personnel-avatar" />
-                        ) : (
-                          <div className="personnel-avatar-placeholder driver-color">
-                            {emp.name.charAt(0)}
-                          </div>
-                        )}
-                        <span className="personnel-role-dot driver-dot" />
-                      </div>
-                      <div className="personnel-info">
-                        <div className="personnel-name">{emp.name} <span className="personnel-nickname">({emp.nickname})</span></div>
-                        <div className="personnel-id-code">{emp.id}</div>
-                        <div className="personnel-quick-contact">
-                          {emp.phone && <span>📞 {emp.phone}</span>}
-                        </div>
-                      </div>
-                      <div className="personnel-expand-hint">{expandedEmployeeId === emp.id ? "−" : "+"}</div>
-                    </div>
-                    {expandedEmployeeId === emp.id && (
-                      <div className="personnel-detail-panel">
-                        <div className="personnel-detail-grid">
-                          <div className="pd-item"><span className="pd-label">ชื่อเล่น</span><strong>{emp.nickname}</strong></div>
-                          <div className="pd-item"><span className="pd-label">เบอร์หลัก</span><strong>{emp.phone || "-"}</strong></div>
-                          <div className="pd-item"><span className="pd-label">เบอร์สำรอง</span><strong>{emp.phone2 || "-"}</strong></div>
-                          <div className="pd-item"><span className="pd-label">วันเข้าทำงาน</span><strong>{emp.startDate || "-"}</strong></div>
-                        </div>
-                        <button
-                          className="indigo-button"
-                          style={{marginTop:"12px", width:"100%"}}
-                          type="button"
-                          onClick={() => openEditEmployeeModal(emp)}
-                        >
-                          แก้ไขข้อมูล
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </section>
+        <PersonnelView
+          employees={employees}
+          expandedEmployeeId={expandedEmployeeId}
+          onToggleEmployee={(employeeId) =>
+            setExpandedEmployeeId(expandedEmployeeId === employeeId ? null : employeeId)
+          }
+          onOpenNewEmployee={() => setShowEmployeeModal(true)}
+          onEditEmployee={openEditEmployeeModal}
+        />
       ) : null}
 
       {mainView === "master" ? (
-        <section className="view-section">
-          <div className="glass-card">
-            <div className="subnav">
-              {[
-                ["summary", "1. ข้อมูลทั้งหมด (Log)"],
-                ["pivot", "2. วิเคราะห์ข้อมูล (Pivot)"],
-                ["products", "3. ตั้งค่าแพ็กเกจ (Product DB)"]
-              ].map(([key, label]) => (
-                <button
-                  className={masterView === key ? "subnav-button active" : "subnav-button"}
-                  key={key}
-                  onClick={() => setMasterView(key as MasterView)}
-                  type="button"
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            {masterView === "summary" ? (
-              <>
-                <div className="section-header">
-                  <div>
-                    <h2>Operational Log</h2>
-                  </div>
-                  <button className="black-button" onClick={() => showToast("กำลังเตรียมไฟล์ Full_Master... สำเร็จ!", "slate")} type="button">
-                    Export All
-                  </button>
-                </div>
-                <div className="table-wrap">
-                  <table className="ops-table compact">
-                    <thead className="thead-black">
-                      <tr>
-                        <th>ID / Booking</th>
-                        <th>วันที่ / รอบ</th>
-                        <th>Packet / Agent</th>
-                        <th>โรงแรม</th>
-                        <th className="center">Pax</th>
-                        <th className="center">Join</th>
-                        <th>คนขับ</th>
-                        <th className="center">Status</th>
-                        <th>สตาฟ</th>
-                        <th>Note</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {orders.slice(0, 100).map((order) => (
-                        <tr key={order.id}>
-                          <td className="mono">
-                            <strong>{order.id}</strong>
-                            <span className="subtle-line">{order.booking}</span>
-                          </td>
-                          <td>
-                            <strong>{order.date}</strong>
-                            <span className="subtle-line">{order.time}</span>
-                          </td>
-                          <td>
-                            <strong>{order.packet}</strong>
-                            <span className="subtle-line">{order.agent}</span>
-                          </td>
-                          <td>{order.hotel}</td>
-                          <td className="center strong-blue">{order.join + order.visitor}</td>
-                          <td className="center strong-green">{order.join}</td>
-                          <td>{order.driver || "-"}</td>
-                          <td className="center">
-                            <span className={`status-badge ${statusClass(order.boarding)}`}>
-                              {formatStatus(order.boarding)}
-                            </span>
-                          </td>
-                          <td>{order.assignedStaff.join(", ") || "-"}</td>
-                          <td className="note-cell">{order.adminNote || "-"}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </>
-            ) : null}
-
-            {masterView === "pivot" ? (
-              <>
-                <div className="toolbar muted">
-                  <label>
-                    <span>Group By</span>
-                    <select
-                      onChange={(event) => setPivotGroupBy(event.target.value as "agent" | "packet")}
-                      value={pivotGroupBy}
-                    >
-                      <option value="agent">Agency (เอเจ้น)</option>
-                      <option value="packet">Packet (แพ็กเกจ)</option>
-                    </select>
-                  </label>
-                </div>
-                <div className="table-wrap">
-                  <table className="ops-table compact">
-                    <thead className="thead-navy">
-                      <tr>
-                        <th>{pivotGroupBy === "agent" ? "AGENT" : "PACKET"}</th>
-                        <th className="center">Bookings</th>
-                        <th className="center">Total Pax</th>
-                        <th className="center">Total Join</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {Object.entries(pivotMap).map(([key, value]) => (
-                        <tr key={key}>
-                          <td className="strong">{key}</td>
-                          <td className="center">{value.bookings}</td>
-                          <td className="center strong-blue">{value.pax}</td>
-                          <td className="center strong-green">{value.join}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </>
-            ) : null}
-
-            {masterView === "products" ? (
-              <>
-                <div className="section-header">
-                  <div>
-                    <h2>ฐานข้อมูลแพ็กเกจ</h2>
-                  </div>
-                  <button className="primary-button" onClick={() => showToast("เพิ่มแพ็กเกจใหม่ (coming soon)", "emerald")} type="button">
-                    + เพิ่มแพ็กเกจ
-                  </button>
-                </div>
-                <div className="packet-grid">
-                  {productPackets.map((packet: ProductPacket) => (
-                    <div className="packet-card" key={packet.name}>
-                      <strong>{packet.name}</strong>
-                      <p>{packet.detail}</p>
-                    </div>
-                  ))}
-                </div>
-              </>
-            ) : null}
-          </div>
-        </section>
+        <MasterView
+          masterView={masterView}
+          pivotGroupBy={pivotGroupBy}
+          pivotMap={pivotMap}
+          orders={orders}
+          productPackets={productPackets}
+          onMasterViewChange={setMasterView}
+          onPivotGroupByChange={setPivotGroupBy}
+          onExportAll={() => showToast("กำลังเตรียมไฟล์ Full_Master... สำเร็จ!", "slate")}
+          onAddPacket={addProductPacket}
+          onEditPacket={editProductPacket}
+          onTogglePacketActive={toggleProductPacketActive}
+          formatStatus={formatStatus}
+          statusClass={statusClass}
+        />
       ) : null}
 
       {showOrderModal ? (
@@ -1860,7 +1569,7 @@ async function handleNewOrderSubmit(event: React.FormEvent<HTMLFormElement>) {
                   onChange={(event) => setNewOrder((current) => ({ ...current, packet: event.target.value }))}
                   value={newOrder.packet}
                 >
-                  {productPackets.map((packet) => (
+                  {activeProductPackets.map((packet) => (
                     <option key={packet.name} value={packet.name}>
                       {packet.name}
                     </option>
