@@ -24,7 +24,12 @@ export async function POST(request: NextRequest) {
   const role = getRole(request);
   const denied = roleGuard(role, ALLOWED_ROLES_ORDER_WRITE);
   if (denied) return denied;
-  const prisma = await getPrisma();
+  let prisma: Awaited<ReturnType<typeof getPrisma>> | null = null;
+  try {
+    prisma = await getPrisma();
+  } catch {
+    return NextResponse.json({ error: "Database unavailable" }, { status: 503 });
+  }
   try {
     const body = await request.json();
     const {
@@ -99,7 +104,9 @@ export async function POST(request: NextRequest) {
     console.error("Order create error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   } finally {
-    await prisma.$disconnect();
+    if (prisma) {
+      await prisma.$disconnect();
+    }
   }
 }
 
@@ -107,7 +114,12 @@ export async function PUT(request: NextRequest) {
   const role = getRole(request);
   const denied = roleGuard(role, ALLOWED_ROLES_ORDER_WRITE);
   if (denied) return denied;
-  const prisma = await getPrisma();
+  let prisma: Awaited<ReturnType<typeof getPrisma>> | null = null;
+  try {
+    prisma = await getPrisma();
+  } catch {
+    return NextResponse.json({ error: "Database unavailable" }, { status: 503 });
+  }
   try {
     const body = await request.json();
     const {
@@ -207,7 +219,9 @@ productPackageId = pkg?.id ?? undefined;
     console.error("Order update error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   } finally {
-    await prisma.$disconnect();
+    if (prisma) {
+      await prisma.$disconnect();
+    }
   }
 }
 
@@ -215,7 +229,12 @@ export async function DELETE(request: NextRequest) {
   const role = getRole(request);
   const denied = roleGuard(role, ALLOWED_ROLES_ORDER_WRITE);
   if (denied) return denied;
-  const prisma = await getPrisma();
+  let prisma: Awaited<ReturnType<typeof getPrisma>> | null = null;
+  try {
+    prisma = await getPrisma();
+  } catch {
+    return NextResponse.json({ error: "Database unavailable" }, { status: 503 });
+  }
   try {
     const { searchParams } = new URL(request.url);
     const bookingNumber = searchParams.get("bookingNumber");
@@ -271,6 +290,8 @@ export async function DELETE(request: NextRequest) {
     console.error("Order delete error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   } finally {
-    await prisma.$disconnect();
+    if (prisma) {
+      await prisma.$disconnect();
+    }
   }
 }

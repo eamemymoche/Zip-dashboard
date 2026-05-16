@@ -6,7 +6,7 @@
 
 ## In Progress
 
-- [ ] **Milestone B:** Fallback policy lock (DB-required vs fallback-allowed by feature).
+- [ ] **Milestone C:** Integrated E2E operational verification.
 - [ ] Build and maintain status truth in `Project Status Snapshot.md` and `Roadmap - Milestone Execution Plan.md`.
 
 ## Done
@@ -23,6 +23,8 @@
 - [x] **Task 28.2:** Updated loader alignment so DB employee/vehicle/product data still loads even when booking list is empty.
 - [x] **Task 28.3:** Added Product Package persistence (`POST /api/product-package`) and wired Master `+ เพิ่มแพ็กเกจ` to write DB and update UI list.
 - [x] **Milestone B.1:** Locked Personnel write path to SQL-first: when `/api/employee` returns `503`, UI now shows failure toast and does not apply local-only success state.
+- [x] **Milestone B.2:** Added fallback policy matrix (`Zip/03_Build/Fallback Policy Matrix.md`) and verification command `npm run verify:milestoneB`.
+- [x] **Milestone B:** Fallback policy lock completed (policy matrix + SQL-first fail-fast behavior on DB-unavailable writes).
 - [x] Identify existing Obsidian vault.
 - [x] Create project planning folders.
 - [x] Prepare Obsidian vault structure.

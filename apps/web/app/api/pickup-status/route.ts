@@ -24,7 +24,12 @@ export async function POST(request: NextRequest) {
   const role = getRole(request);
   const denied = roleGuard(role, ALLOWED_ROLES_PICKUP_WRITE);
   if (denied) return denied;
-  const prisma = await getPrisma();
+  let prisma: Awaited<ReturnType<typeof getPrisma>> | null = null;
+  try {
+    prisma = await getPrisma();
+  } catch {
+    return NextResponse.json({ error: "Database unavailable" }, { status: 503 });
+  }
   try {
     const body = await request.json();
     const { bookingNumber, status, note, updatedAt } = body;
@@ -94,6 +99,8 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   } finally {
-    await prisma.$disconnect();
+    if (prisma) {
+      await prisma.$disconnect();
+    }
   }
 }

@@ -38,9 +38,8 @@ The following are already in place and should be treated as the current baseline
 
 Continue in this order unless a real bug interrupts the sequence:
 
-1. Milestone B - Fallback policy lock
-2. Milestone C - Integrated E2E operational verification
-3. Optional later - Split additional shared transport/order helper types only if file pressure justifies it
+1. Milestone C - Integrated E2E operational verification
+2. Optional later - Split additional shared transport/order helper types only if file pressure justifies it
 
 ## Task 24
 

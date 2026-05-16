@@ -17,13 +17,13 @@
     "verify:task29": "node ./scripts/task29-verify-audit-helper.mjs",
     "verify:task30": "node ./scripts/task30-delete-hardening.mjs",
     "verify:milestoneA": "node ./scripts/verify-milestone-a-product.mjs",
+    "verify:milestoneB": "node ./scripts/verify-milestone-b-policy.mjs",
     "audit:booking": "node ./scripts/task29-audit-log-by-booking.mjs",
     "db:generate": "node ./node_modules/prisma/build/index.js generate --schema packages/db/prisma/schema.prisma",
     "db:migrate": "node ./node_modules/prisma/build/index.js migrate dev --schema packages/db/prisma/schema.prisma",
     "db:seed": "node packages/db/prisma/seed.mjs"
   },
   "dependencies": {
-    "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
     "pg": "^8.20.0"
   },

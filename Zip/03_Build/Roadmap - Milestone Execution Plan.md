@@ -7,7 +7,9 @@ Scope: Post-Task-30 execution direction
 ## Current Progress Marker
 
 - Milestone A is complete.
-- Milestone B is now the active execution target.
+- Milestone B is complete.
+- Active target is now Milestone C.
+- Milestone B.1/B.2/B.3 complete (Personnel fail-fast on `503` + policy matrix + verify command + DB-required write `503` normalization).
 
 ## Planning Principles
 

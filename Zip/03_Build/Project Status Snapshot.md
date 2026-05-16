@@ -6,8 +6,8 @@ Owner: Implementation queue (AI-agent handoff note)
 
 ## 1) Executive Summary
 
-Project is in **late alpha** and has passed the first real persistence loop for core operations.  
-**Milestone A is complete.**
+Project is in late alpha and has passed the first real persistence loop for core operations.  
+Milestone A and Milestone B are complete.
 
 - auth/session + role gating
 - Order CRUD persistence
@@ -19,8 +19,6 @@ Project is in **late alpha** and has passed the first real persistence loop for 
 - optimistic concurrency (`409`) on major write paths
 - FK-linked delete hardening and rollback/guard validation
 
-This is no longer a UI prototype. It is now an app with a meaningful DB-backed operational core.
-
 ## 2) What Is Stable Now (Verified)
 
 ### Core write flows
@@ -30,7 +28,7 @@ This is no longer a UI prototype. It is now an app with a meaningful DB-backed o
 - `POST /api/pickup-status`
 - `POST /api/staff-assignment`
 - `POST/PUT /api/employee`
-- `POST /api/product-package`
+- `POST/PUT/PATCH /api/product-package`
 
 ### Auth/guards
 
@@ -38,33 +36,24 @@ This is no longer a UI prototype. It is now an app with a meaningful DB-backed o
 - protected route redirect via proxy
 - role guard checks for key write APIs (`403`)
 
-### Concurrency & integrity
+### Concurrency and integrity
 
 - stale token conflict checks (`409`) on key write endpoints
 - delete hardening validated for linked transport/pickup/staff rows
 
 ### Verification commands
 
-- `npm run verify:task24` (runtime smoke loop)
-- `npm run verify:task26` (role + conflict guard checks)
-- `npm run verify:task27` (browser UI click pass: Personnel + Master)
-- `npm run verify:task29` (audit helper verification)
-- `npm run verify:task30` (delete hardening verification)
+- `npm run verify:task24`
+- `npm run verify:task26`
+- `npm run verify:task27`
+- `npm run verify:task29`
+- `npm run verify:task30`
+- `npm run verify:milestoneA`
 
 ## 3) What Is Not Fully Complete Yet
 
-1. **Product Package domain is partial**  
-   - create exists, but no edit/deactivate lifecycle yet.
-
-2. **Some app behavior is still mixed-mode by design**  
-   - fallback paths still exist for DB-unavailable mode.
-   - this is intentional for resilience, but needs explicit policy boundaries.
-
-3. **End-to-end “full business day” scenario is not yet codified as one deterministic script**  
-   - component tests exist as slices; full operational chain test is still manual composition.
-
-4. **Roadmap format drifted from outcome-based milestones to many micro tasks**  
-   - clarity risk for future execution.
+1. Full operational chain is still split across multiple scripts (Milestone C target).
+2. Route/module permissions are intentionally lightweight and may be refined by business needs.
 
 ## 4) Current Risk Posture
 
@@ -75,54 +64,38 @@ This is no longer a UI prototype. It is now an app with a meaningful DB-backed o
 
 ### Medium risk
 
-- domain drift in Master Product DB because lifecycle is incomplete
-- confusion between fallback-mode behavior vs DB-mode behavior if not documented in each feature
+- fallback behavior drifting from intended policy if not verified continuously
+- adding dashboard features without updating policy matrix and verify scripts
 
 ### High risk (if not addressed next)
 
 - adding new features without milestone-level acceptance criteria
 - parallel edits in `operations-dashboard.tsx` without scoped ownership
 
-## 5) Recommended Direction (Do Not Skip)
+## 5) Milestone Direction
 
-Use **milestone-first execution**, not ad-hoc task numbering.
+### Milestone A - Product Package lifecycle
 
-### Milestone A - Domain Completion (Product Package lifecycle) ✅ Done
-
-Completed:
-- ProductPackage create/edit/deactivate/activate
-- role-aligned write guards
-- dedicated lifecycle verifier command (`npm run verify:milestoneA`)
-
-Done when:
-- create/edit/deactivate all persist
-- product list clearly reflects active/inactive status
-- regression scripts still pass
+- Done on 2026-05-16
+- Verification command: `npm run verify:milestoneA`
 
 ### Milestone B - Fallback Policy Lock
 
-Goal:
-- codify when fallback is allowed and when write must fail fast
-- remove ambiguous behavior in user-facing flows
+- Done on 2026-05-16
+- B.1 done: Personnel no longer performs local-only success fallback on `503`
+- B.2 done: policy matrix and verify command added (`npm run verify:milestoneB`)
+- B.3 done: DB-required write APIs return `503` on DB-unavailable initialization (no accidental `500`)
 
-Done when:
-- per-feature policy table exists (DB required vs fallback allowed)
-- all relevant API/UI messages match policy
+### Milestone C - Integrated E2E operational verification
 
-### Milestone C - Full Operational E2E
+- Next active milestone after B closure
+- Target: one deterministic command for login -> operational writes -> audit -> cleanup
 
-Goal:
-- one repeatable scenario covering: login -> create booking -> assign transport -> assign staff -> pickup update -> verify audit -> delete cleanup
+## 6) Immediate Next Sprint (Recommended)
 
-Done when:
-- one deterministic script/command runs full chain
-- outputs are captured in log format suitable for handoff
-
-## 6) Immediate Next Sprint (Recommended 3 Steps)
-
-1. Lock Milestone B fallback policy table and enforce matching API/UI behavior.  
-2. Build one integrated E2E verifier command from existing task24/26/29/30 blocks.  
-3. Promote baseline verifier bundle as pre-merge checklist.
+1. Build integrated Milestone C verifier command.
+2. Promote verifier bundle as pre-merge checklist.
+3. Add release-facing runbook for daily operational verification.
 
 ## 7) Guardrails For Future Work
 

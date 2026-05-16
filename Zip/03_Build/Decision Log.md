@@ -1491,3 +1491,76 @@ After Task 28.1, the employee modal still applied local state updates when `/api
 - `Zip/03_Build/Fallback Local-State Reconciliation.md`
 - `Zip/03_Build/Task Board.md`
 - `Zip/03_Build/Decision Log.md`
+
+## 2026-05-16 - Milestone B.2: Add fallback policy matrix and verifier
+
+### Decision
+
+Create an explicit fallback policy matrix and add an automated policy verifier command.
+
+### Context
+
+Milestone B required one source of truth for DB-required writes vs fallback-allowed behaviors. Without a concrete matrix and check script, fallback behavior can drift silently during later feature work.
+
+### Consequences
+
+- Added `Zip/03_Build/Fallback Policy Matrix.md` with per-domain policy.
+- Added verifier script `scripts/verify-milestone-b-policy.mjs`.
+- Added command `npm run verify:milestoneB`.
+- Removed unused package `@prisma/adapter-pg` from dependencies.
+- Updated roadmap/status notes to reflect B.2 completion and current state.
+
+### Verification
+
+- `npm.cmd run verify:milestoneB` => pass
+- `npm.cmd run build` => pass
+
+### Files Changed
+
+- `scripts/verify-milestone-b-policy.mjs`
+- `package.json`
+- `package-lock.json`
+- `README.md`
+- `Zip/03_Build/Fallback Policy Matrix.md`
+- `Zip/03_Build/Project Status Snapshot.md`
+- `Zip/03_Build/Roadmap - Milestone Execution Plan.md`
+- `Zip/03_Build/Task Board.md`
+- `Zip/03_Build/Decision Log.md`
+
+## 2026-05-16 - Milestone B.3 and Milestone B closure
+
+### Decision
+
+Normalize DB-unavailable behavior for DB-required write APIs to return `503` instead of leaking `500` from Prisma initialization.
+
+### Context
+
+While closing Milestone B, `verify:task26` surfaced a failure path in DB-unavailable mode: some write APIs instantiated Prisma before the route `try/catch`, causing initialization errors to bubble as `500`. This conflicted with the fallback policy lock intent.
+
+### Consequences
+
+- Added DB-unavailable initialization guards (`503`) to:
+  - `POST/PUT/DELETE /api/order`
+  - `POST/DELETE /api/transport-assignment`
+  - `POST /api/pickup-status`
+  - `POST /api/staff-assignment`
+- Disconnect logic now checks for initialized Prisma client before calling `$disconnect()`.
+- Milestone B marked complete in Task Board / Roadmap / Snapshot / Work Queue.
+
+### Verification
+
+- `npm.cmd run build` => pass
+- `npm.cmd run verify:milestoneB` => pass
+- Note: `verify:task26` requires DB-available mode for conflict fixture creation; DB-unavailable mode now correctly fails write initialization with `503`.
+
+### Files Changed
+
+- `apps/web/app/api/order/route.ts`
+- `apps/web/app/api/transport-assignment/route.ts`
+- `apps/web/app/api/pickup-status/route.ts`
+- `apps/web/app/api/staff-assignment/route.ts`
+- `Zip/03_Build/Task Board.md`
+- `Zip/03_Build/Project Status Snapshot.md`
+- `Zip/03_Build/Roadmap - Milestone Execution Plan.md`
+- `Zip/03_Build/Agent Work Queue.md`
+- `Zip/03_Build/Decision Log.md`

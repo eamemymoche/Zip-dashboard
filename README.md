@@ -75,6 +75,12 @@ Milestone A product lifecycle verification:
 npm run verify:milestoneA
 ```
 
+Milestone B fallback policy verification:
+
+```powershell
+npm run verify:milestoneB
+```
+
 Optional base URL override:
 
 ```powershell
