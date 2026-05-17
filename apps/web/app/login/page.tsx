@@ -93,7 +93,7 @@ export default function LoginPage() {
           {loading ? "Signing in..." : "Sign In"}
         </button>
         <div style={{ marginTop: "4px" }}>
-          <div style={{ textAlign: "center", fontSize: "11px", color: "#475569", marginBottom: "6px" }}>Dev Accounts</div>
+          <div style={{ textAlign: "center", fontSize: "11px", color: "#475569", marginBottom: "6px" }}>Demo Account</div>
           <table style={{ width: "100%", fontSize: "11px", color: "#64748b", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ background: "#0f172a" }}>
@@ -104,19 +104,9 @@ export default function LoginPage() {
             </thead>
             <tbody>
               <tr>
-                <td style={{ padding: "3px 6px" }}>MANAGER</td>
-                <td style={{ padding: "3px 6px", color: "#94a8b8" }}>officer@zipline.com</td>
-                <td style={{ padding: "3px 6px", color: "#94a8b8" }}>zipline123</td>
-              </tr>
-              <tr style={{ background: "#0f172a" }}>
-                <td style={{ padding: "3px 6px" }}>ADMIN</td>
-                <td style={{ padding: "3px 6px", color: "#94a8b8" }}>owner@zipline.com</td>
-                <td style={{ padding: "3px 6px", color: "#94a8b8" }}>owner123</td>
-              </tr>
-              <tr>
-                <td style={{ padding: "3px 6px" }}>ACCOUNTING</td>
-                <td style={{ padding: "3px 6px", color: "#94a8b8" }}>accounting@zipline.com</td>
-                <td style={{ padding: "3px 6px", color: "#94a8b8" }}>accounting123</td>
+                <td style={{ padding: "3px 6px" }}>SUPERADMIN</td>
+                <td style={{ padding: "3px 6px", color: "#94a8b8" }}>superadmin@zipline.com</td>
+                <td style={{ padding: "3px 6px", color: "#94a8b8" }}>super123</td>
               </tr>
             </tbody>
           </table>

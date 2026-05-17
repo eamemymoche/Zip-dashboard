@@ -7,7 +7,7 @@ Owner: Implementation queue (AI-agent handoff note)
 ## 1) Executive Summary
 
 Project is in late alpha and has passed the first real persistence loop for core operations.  
-Milestone A and Milestone B are complete.
+Milestone A, B, and C are complete.
 
 - auth/session + role gating
 - Order CRUD persistence
@@ -49,11 +49,13 @@ Milestone A and Milestone B are complete.
 - `npm run verify:task29`
 - `npm run verify:task30`
 - `npm run verify:milestoneA`
+- `npm run verify:milestoneB`
+- `npm run verify:milestoneC`
 
 ## 3) What Is Not Fully Complete Yet
 
-1. Full operational chain is still split across multiple scripts (Milestone C target).
-2. Route/module permissions are intentionally lightweight and may be refined by business needs.
+1. Route/module permissions are intentionally lightweight and may be refined by business needs.
+2. Add a release checklist that combines milestone verifiers into one pre-deploy routine.
 
 ## 4) Current Risk Posture
 
@@ -88,14 +90,14 @@ Milestone A and Milestone B are complete.
 
 ### Milestone C - Integrated E2E operational verification
 
-- Next active milestone after B closure
-- Target: one deterministic command for login -> operational writes -> audit -> cleanup
+- Done on 2026-05-16
+- Command: `npm run verify:milestoneC`
 
 ## 6) Immediate Next Sprint (Recommended)
 
-1. Build integrated Milestone C verifier command.
-2. Promote verifier bundle as pre-merge checklist.
-3. Add release-facing runbook for daily operational verification.
+1. Promote verifier bundle as pre-merge checklist.
+2. Add release-facing runbook for daily operational verification.
+3. Tighten module-level permission matrix where business requires stricter separation.
 
 ## 7) Guardrails For Future Work
 

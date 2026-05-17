@@ -17,6 +17,14 @@ Vehicle model and `TransportAssignment.vehicleId` are committed as migration `20
 
 `Employee` model extended with `nickname`, `phone`, `phone2`, `startDate`, `photo` via migration `20260514000001_add_employee_fields`. All fields are nullable/optional. Migration is idempotent. Seed data includes all new fields. Loader no longer fabricates `nickname` from name split.
 
+## Migration Baseline (2026-05-17) — SUPERADMIN Role and User Active Flag
+
+`User` model extended with:
+- `SUPERADMIN` added to `UserRole` enum
+- `active Boolean @default(true)` field
+
+Migration `20260517000000_add_superadmin_role_and_user_active` is idempotent. Existing users remain visible (default `active = true`).
+
 ## Current Safe Split Boundary
 
 The first safe split has already been started in the transport domain.
@@ -154,6 +162,33 @@ The first safe split has already been started in the transport domain.
 - `C:\Users\Nuke\Desktop\Zip\apps\web\lib\load-dashboard-data.ts`
   - owns DB-to-dashboard mapping
   - must keep compatibility with current dashboard shape during migration
+
+- `apps/web/app/user-access-view.tsx`
+  - owns the User Access Board rendering
+  - owns user list, search/filter, add user modal, edit role modal, confirm role dialog, enable/disable toggle
+  - does NOT own user persistence; calls `/api/users` for all writes
+  - visibility: `SUPERADMIN` and `ADMIN` only (enforced at nav level in `operations-dashboard.tsx`)
+  - uses local component state for optimistic UI updates
+
+- `apps/web/app/api/users/route.ts`
+  - owns User CRUD: GET (list all), POST (create with password hash), PUT (update role/active)
+  - role-gated: `SUPERADMIN`, `ADMIN`, `ACCOUNTING`, `MANAGER` only (ALLOWED_ROLES_WRITE)
+  - writes `AuditLog` on role/active changes
+  - does not expose passwordHash in responses
+
+- `apps/web/app/change-log-view.tsx`
+  - owns the Change Log Board rendering
+  - owns tab bar (All/Orders/Transport/Staffing/Personnel/Users), search/date filters, log table with pagination
+  - read-only; calls `/api/audit-log` for data
+  - error banner + empty table state when API unavailable (no fake data)
+  - visibility: `SUPERADMIN` and `ADMIN` only (enforced at nav level in `operations-dashboard.tsx`)
+
+- `apps/web/app/api/audit-log/route.ts`
+  - owns audit log read: GET with domain/keyword/date/pagination query params
+  - maps DB `AuditLog` rows to log item shape (id, timestamp, actorDisplay, actorRole, domain, action, entityType, entityId, beforeSummary, afterSummary)
+  - domain derived from entityType mapping; before/after summaries parsed from JSON strings
+  - role-gated: `ALLOWED_ROLES_USER_ACCESS` (`SUPERADMIN`, `ADMIN`)
+  - read-only; no writes
 
 ## Transport Contract
 

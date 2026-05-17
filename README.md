@@ -81,6 +81,12 @@ Milestone B fallback policy verification:
 npm run verify:milestoneB
 ```
 
+Milestone C integrated end-to-end verification:
+
+```powershell
+npm run verify:milestoneC
+```
+
 Optional base URL override:
 
 ```powershell

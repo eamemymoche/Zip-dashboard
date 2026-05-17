@@ -23,6 +23,7 @@ enum EmployeeRole {
 }
 
 enum UserRole {
+  SUPERADMIN
   ADMIN
   ACCOUNTING
   MANAGER
@@ -36,6 +37,8 @@ model User {
   passwordHash String?
   displayName String
   role        UserRole   @default(STAFF)
+  active      Boolean    @default(true)
+  moduleAccessJson String?
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
   bookings    Booking[]  @relation("UserBookings")

@@ -38,8 +38,9 @@ The following are already in place and should be treated as the current baseline
 
 Continue in this order unless a real bug interrupts the sequence:
 
-1. Milestone C - Integrated E2E operational verification
-2. Optional later - Split additional shared transport/order helper types only if file pressure justifies it
+1. Frontend Phase - Access and Audit Boards (UI-first)
+2. Promote verifier bundle as a pre-merge / pre-release checklist
+3. Optional later - Split additional shared transport/order helper types only if file pressure justifies it
 
 ## Task 24
 

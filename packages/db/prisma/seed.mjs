@@ -125,9 +125,12 @@ const bookings = [
 ];
 
 const users = [
+  { email: "superadmin@zipline.com", displayName: "SuperAdmin User", role: "SUPERADMIN", password: "super123" },
   { email: "officer@zipline.com", displayName: "Officer User", role: "MANAGER", password: "zipline123" },
   { email: "owner@zipline.com", displayName: "Owner User", role: "ADMIN", password: "owner123" },
-  { email: "accounting@zipline.com", displayName: "Accounting User", role: "ACCOUNTING", password: "accounting123" }
+  { email: "accounting@zipline.com", displayName: "Accounting User", role: "ACCOUNTING", password: "accounting123" },
+  { email: "staff@zipline.com", displayName: "Staff User", role: "STAFF", password: "staff123" },
+  { email: "driver@zipline.com", displayName: "Driver User", role: "DRIVER", password: "driver123" }
 ];
 
 const SESSION_SECRET = process.env.SESSION_SECRET ?? "dev-secret-change-in-production";
@@ -230,14 +233,16 @@ async function main() {
   }
 
   for (const user of users) {
+    const passwordHash = hashPassword(user.password);
     await prisma.user.upsert({
       where: { email: user.email },
-      update: { displayName: user.displayName, role: user.role },
+      update: { displayName: user.displayName, role: user.role, active: true, passwordHash },
       create: {
         email: user.email,
         displayName: user.displayName,
         role: user.role,
-        passwordHash: hashPassword(user.password)
+        passwordHash,
+        active: true
       }
     });
   }

@@ -1564,3 +1564,116 @@ While closing Milestone B, `verify:task26` surfaced a failure path in DB-unavail
 - `Zip/03_Build/Roadmap - Milestone Execution Plan.md`
 - `Zip/03_Build/Agent Work Queue.md`
 - `Zip/03_Build/Decision Log.md`
+
+## 2026-05-16 - Milestone C integrated verifier added and validated
+
+### Decision
+
+Add one integrated end-to-end verifier command for the full operational write chain.
+
+### Context
+
+Task-level verifiers existed (`task24/26/29/30`) but daily confidence still depended on manually combining outputs. Milestone C required one deterministic run that proves create/edit/assignment/audit/conflict/delete cleanup in one pass.
+
+### Consequences
+
+- Added script `scripts/verify-milestone-c-e2e.mjs`.
+- Added command `npm run verify:milestoneC`.
+- Reintroduced Prisma adapter runtime in app workspace (`apps/web`), ensuring API Prisma construction works in current Prisma 7 setup.
+- Kept local monorepo support by loading `DATABASE_URL` from nearby `.env.local` candidates when process env is missing.
+
+### Verification
+
+- `npm.cmd run build` => pass
+- `npm.cmd run verify:milestoneC` => pass
+
+### Files Changed
+
+- `scripts/verify-milestone-c-e2e.mjs`
+- `package.json`
+- `package-lock.json`
+- `apps/web/package.json`
+- `apps/web/lib/prisma.ts`
+- `README.md`
+- `Zip/03_Build/Task Board.md`
+- `Zip/03_Build/Roadmap - Milestone Execution Plan.md`
+- `Zip/03_Build/Project Status Snapshot.md`
+- `Zip/03_Build/Agent Work Queue.md`
+- `Zip/03_Build/Decision Log.md`
+
+## 2026-05-17 - Frontend admin boards integration guardrails (A/B/C/D pass)
+
+### Decision
+
+Harden User Access + Change Log integration with stricter role boundaries and add a dedicated access verifier.
+
+### Context
+
+Board A and B were implemented, but review found integration risks:
+- User Access UI called non-existent `PUT /api/users/:id` path
+- API guard for `/api/users` was broader than required
+- admin boards were nav-gated but not render-gated
+- no dedicated guardrail verifier for admin-board API access checks
+
+### Consequences
+
+- `UserAccessView` now updates via `PUT /api/users` with `{ id, ... }`.
+- `UserAccessView` auto-loads list from `/api/users` when initial list is empty.
+- `/api/users` role guard now uses `ALLOWED_ROLES_USER_ACCESS` (`SUPERADMIN`, `ADMIN`) for GET/POST/PUT.
+- Only `SUPERADMIN` can assign `SUPERADMIN`.
+- `operations-dashboard.tsx` now applies render-level guard for `useraccess` and `changelog` views.
+- Added `scripts/verify-frontend-access-guardrails.mjs` + `npm run verify:frontend:access`.
+- Added explicit `503` response when `/api/users` fails due missing `User.active` schema on non-migrated DB.
+
+### Verification
+
+- `npm.cmd run verify:frontend:access` => pass
+- `npm.cmd run build` => pass
+
+### Files Changed
+
+- `apps/web/app/user-access-view.tsx`
+- `apps/web/app/api/users/route.ts`
+- `apps/web/app/api/audit-log/route.ts`
+- `apps/web/app/operations-dashboard.tsx`
+- `apps/web/lib/auth/role-guards.ts`
+- `scripts/verify-frontend-access-guardrails.mjs`
+- `package.json`
+- `Zip/03_Build/Frontend Phase - Access and Audit Boards.md`
+- `Zip/03_Build/Frontend Phase - Aggregated Report (A-B-C-D).md`
+- `Zip/03_Build/Task Board.md`
+- `Zip/03_Build/Decision Log.md`
+
+## 2026-05-17 - Demo superadmin setup and login simplification
+
+### Decision
+
+Prepare demo-ready auth/users by adding a dedicated SUPERADMIN credential and ensuring User Access board shows role coverage even when DB user schema is not fully migrated.
+
+### Context
+
+User requested immediate demo readiness:
+- login page should show only SUPERADMIN credential
+- User Access board should include all role samples for demo (`SUPERADMIN/ADMIN/OFFICER/ACCOUNT/STAFF/DRIVER`)
+
+### Consequences
+
+- Added dev auth fallback users for all demo roles, including:
+  - `superadmin@zipline.com / super123` (`SUPERADMIN`)
+  - existing admin/officer/accounting plus staff/driver demo users
+- Login page credential table now shows only SUPERADMIN demo account.
+- `/api/users` GET now returns demo fallback user list when DB is unavailable or user schema is outdated, so board is not empty in demo mode.
+- Seed script now upserts all demo roles with `active: true` and updates password hashes on upsert.
+
+### Verification
+
+- `npm.cmd run build` => pass
+
+### Files Changed
+
+- `apps/web/app/api/auth/login/route.ts`
+- `apps/web/app/api/users/route.ts`
+- `apps/web/app/login/page.tsx`
+- `packages/db/prisma/seed.mjs`
+- `Zip/03_Build/Task Board.md`
+- `Zip/03_Build/Decision Log.md`

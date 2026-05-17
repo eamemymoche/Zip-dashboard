@@ -1,11 +1,14 @@
 "use client";
 
 import type { EmployeeRecord, OrderRecord, VehicleRecord } from "../lib/ops-data";
+import { DatePicker } from "./date-picker";
 
 type Props = {
   orders: OrderRecord[];
   drivers: EmployeeRecord[];
   vehicles: VehicleRecord[];
+  transportDate: string;
+  onSetTransportDate: (value: string) => void;
   savingOrderId: number | null;
   onChangeLocalAdminNote: (orderId: number, value: string) => void;
   onSaveTransport: (order: OrderRecord, patch: { driverCode?: string; vehicleCode?: string; adminNote?: string }) => void;
@@ -15,12 +18,25 @@ export function TransportAssignTable({
   orders,
   drivers,
   vehicles,
+  transportDate,
+  onSetTransportDate,
   savingOrderId,
   onChangeLocalAdminNote,
   onSaveTransport
 }: Props) {
   return (
-    <div className="table-wrap">
+    <>
+      <div className="toolbar muted">
+        <label>
+          <span>วันที่</span>
+          <DatePicker
+            value={transportDate}
+            onChange={(value) => onSetTransportDate(value)}
+            style={{ fontSize: "13px", minWidth: "130px" }}
+          />
+        </label>
+      </div>
+      <div className="table-wrap">
       <table className="ops-table compact">
         <thead className="thead-indigo">
           <tr>
@@ -109,6 +125,7 @@ export function TransportAssignTable({
           })}
         </tbody>
       </table>
-    </div>
+      </div>
+    </>
   );
 }

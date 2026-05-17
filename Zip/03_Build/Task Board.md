@@ -6,7 +6,7 @@
 
 ## In Progress
 
-- [ ] **Milestone C:** Integrated E2E operational verification.
+- [ ] **Frontend Phase:** Access and Audit Boards (UI-first) â€” see `Zip/03_Build/Frontend Phase - Access and Audit Boards.md`.
 - [ ] Build and maintain status truth in `Project Status Snapshot.md` and `Roadmap - Milestone Execution Plan.md`.
 
 ## Done
@@ -25,6 +25,9 @@
 - [x] **Milestone B.1:** Locked Personnel write path to SQL-first: when `/api/employee` returns `503`, UI now shows failure toast and does not apply local-only success state.
 - [x] **Milestone B.2:** Added fallback policy matrix (`Zip/03_Build/Fallback Policy Matrix.md`) and verification command `npm run verify:milestoneB`.
 - [x] **Milestone B:** Fallback policy lock completed (policy matrix + SQL-first fail-fast behavior on DB-unavailable writes).
+- [x] **Milestone C:** Added integrated E2E verifier (`npm run verify:milestoneC`) covering create/edit/transport/pickup/staffing/audit/conflict-delete/cleanup chain.
+- [x] **Frontend Phase C:** Integration+guardrails complete for admin boards (`useraccess`, `changelog`) with strict role API guard and verifier `npm run verify:frontend:access`.
+- [x] **Demo setup:** Added `SUPERADMIN` demo credentials and full demo role users (`SUPERADMIN/ADMIN/OFFICER/ACCOUNT/STAFF/DRIVER`) for User Access board visibility testing; login page now shows only superadmin demo account.
 - [x] Identify existing Obsidian vault.
 - [x] Create project planning folders.
 - [x] Prepare Obsidian vault structure.
@@ -646,3 +649,98 @@ Using live local PostgreSQL at `localhost:5432/zipline` and the running local ap
 - edit order: `200`
 - delete order: `200`
 - post-logout protected route check: `307 -> /login?from=%2F`
+
+## 2026-05-17 (Evening) — User Access Board (Board 1) Done
+
+### Task: Implement Board 1 (User Access Board) — DONE
+
+**What was built:**
+
+**Schema changes:**
+- `UserRole` enum: added `SUPERADMIN` (new top-level role)
+- `User` model: added `active Boolean @default(true)` field
+- Migration created: `20260517000000_add_superadmin_role_and_user_active` (idempotent)
+
+**Type layer:**
+- `role-guards.ts`: `UserRole` type extended to include `SUPERADMIN`; `MODULE_ACCESS` updated with `useraccess: ["SUPERADMIN", "ADMIN"]`; added `ALL_ROLES` and `ROLE_LABELS` exports
+- `auth-context.tsx`: `UserRole` type updated to match
+- All `ALLOWED_ROLES_*` constants updated to include `SUPERADMIN`
+
+**New files:**
+- `apps/web/app/user-access-view.tsx` — User Access Board component
+  - User list table with display name, email, role badge, active status badge
+  - Search + role filter controls
+  - Add User modal (email, displayName, role, password)
+  - Edit Role modal with role selector
+  - Confirm Role change dialog (Thai)
+  - Enable/Disable toggle button per user
+  - All actions call `/api/users` REST endpoints
+  - Local component state for optimistic updates; errors surface to user
+
+- `apps/web/app/api/users/route.ts` — User CRUD API
+  - GET: list all users (id, email, displayName, role, active, createdAt)
+  - POST: create user with SHA256 password hash + SESSION_SECRET
+  - PUT: update role and/or active flag; writes `AuditLog` on changes
+  - Role-gated: `SUPERADMIN`, `ADMIN`, `ACCOUNTING`, `MANAGER` (ALLOWED_ROLES_WRITE)
+  - Returns 403 for insufficient role
+
+**Navigation integration:**
+- `MainView` type extended with `"useraccess"`
+- Nav item added: `"ตั้งค่าผู้ใช้"` visible only to `SUPERADMIN` or `ADMIN`
+- `UserAccessView` rendered when `mainView === "useraccess"` with `initialUsers={[]}`
+
+**Build:** `npm run build` passes — 13 routes (includes new `/api/users`), no TypeScript errors
+
+**Visibility enforcement:**
+- Nav: `userRole === "ADMIN" || userRole === "SUPERADMIN"` (client-side gate)
+- API: `ALLOWED_ROLES_WRITE` role check on all endpoints
+- UI state: no fake success — errors displayed in red and modal stays open
+
+**Files changed:**
+- `packages/db/prisma/schema.prisma` — added SUPERADMIN to UserRole enum, added active field to User
+- `packages/db/prisma/migrations/20260517000000_add_superadmin_role_and_user_active/migration.sql` — new migration
+- `apps/web/lib/auth/role-guards.ts` — SUPERADMIN role, ALL_ROLES, ROLE_LABELS, MODULE_ACCESS entry
+- `apps/web/lib/auth/auth-context.tsx` — UserRole type updated
+- `apps/web/app/operations-dashboard.tsx` — MainView type, nav item, UserAccessView render
+- `apps/web/app/user-access-view.tsx` — new component
+- `apps/web/app/api/users/route.ts` — new API route
+- `Zip/03_Build/Module Ownership and Split Guide.md` — updated with new file ownership entries
+
+## 2026-05-17 (Late Evening) — Change Log Board (Board 2) Done
+
+### Task: Implement Board 2 (Change Log Board) — DONE
+
+**What was built:**
+
+**New API:**
+- `apps/web/app/api/audit-log/route.ts` — read-only audit log endpoint
+  - Query params: `domain` (orders/transport/staffing/personnel/users), `q` (keyword), `fromDate`, `toDate`, `page`, `pageSize`
+  - Returns `{ items, total, page, pageSize, pageCount }` per data contract
+  - Maps `AuditLog` rows to: `id, timestamp, actorDisplay, actorRole, domain, action, entityType, entityId, beforeSummary, afterSummary`
+  - `beforeSummary`/`afterSummary` parsed from JSON strings into `k: v` strings
+  - Domain derived from `entityType` mapping (Booking→orders, TransportAssignment→transport, etc.)
+  - Role-gated: `SUPERADMIN`, `ADMIN` (ALLOWED_ROLES_USER_ACCESS)
+
+**New component:**
+- `apps/web/app/change-log-view.tsx` — Change Log Board
+  - 6 tabs: ทั้งหมด | ออเดอร์ | ขนส่ง | พนักงาน | บุคลากร | ผู้ใช้
+  - Tab switches update domain filter and active tab state
+  - Filters: keyword search input + from/to date range (DatePicker) — combinable
+  - Table columns: เวลา | ผู้กระทำ | โดเมน | การกระทำ | Entity | ก่อนแก้ไข | หลังแก้ไข
+  - Column widths fixed (no layout jumping between loading/empty/data/error states)
+  - Loading: "กำลังโหลด..." | Empty: "ไม่พบรายการ" | Error: red banner + empty table
+  - Pagination: ← / → with page count
+
+**Navigation integration:**
+- `MainView` type extended with `"changelog"`
+- Nav item `"บันทึกแก้ไข"` visible only to `SUPERADMIN` or `ADMIN`
+- `ChangeLogView` rendered when `mainView === "changelog"`
+
+**Build:** `npm run build` passes — 14 routes, no TypeScript errors
+
+**Files changed:**
+- `apps/web/app/change-log-view.tsx` — new component
+- `apps/web/app/api/audit-log/route.ts` — new API route
+- `apps/web/lib/auth/role-guards.ts` — `MODULE_ACCESS` updated with `changelog: ["SUPERADMIN","ADMIN"]`
+- `apps/web/app/operations-dashboard.tsx` — MainView type, changelog nav item, ChangeLogView render
+- `Zip/03_Build/Module Ownership and Split Guide.md` — updated with new file ownership entries

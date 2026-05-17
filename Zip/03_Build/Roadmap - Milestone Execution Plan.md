@@ -8,7 +8,7 @@ Scope: Post-Task-30 execution direction
 
 - Milestone A is complete.
 - Milestone B is complete.
-- Active target is now Milestone C.
+- Milestone C is complete.
 - Milestone B.1/B.2/B.3 complete (Personnel fail-fast on `503` + policy matrix + verify command + DB-required write `503` normalization).
 
 ## Planning Principles
@@ -115,6 +115,11 @@ Current verification is strong but split across multiple scripts. Team confidenc
 
 - one command returns non-zero on any failed subflow
 - report is readable for daily pre-release checks
+
+### Status
+
+- Done on 2026-05-16
+- Verifier command: `npm run verify:milestoneC`
 
 ## Recommended Execution Order
 

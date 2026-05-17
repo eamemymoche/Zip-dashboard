@@ -27,7 +27,8 @@ export async function POST(request: NextRequest) {
   let prisma: Awaited<ReturnType<typeof getPrisma>> | null = null;
   try {
     prisma = await getPrisma();
-  } catch {
+  } catch (error) {
+    console.error("Order create prisma init error:", error);
     return NextResponse.json({ error: "Database unavailable" }, { status: 503 });
   }
   try {

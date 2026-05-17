@@ -29,6 +29,9 @@ import {
   buildTransportOrders
 } from "./dashboard-selectors";
 import { useAuth } from "../lib/auth/auth-context";
+import { defaultBoardAccessForRole } from "../lib/auth/role-guards";
+import { UserAccessView } from "./user-access-view";
+import { ChangeLogView } from "./change-log-view";
 import * as XLSX from "xlsx";
 
 import type {
@@ -38,7 +41,7 @@ import type {
   OrderRecord
 } from "../lib/ops-data";
 
-type MainView = "overview" | "orderlist" | "personnel" | "transport" | "staffing" | "master";
+type MainView = "overview" | "orderlist" | "personnel" | "transport" | "staffing" | "master" | "useraccess" | "changelog";
 type TransportView = "assign" | "recheck" | "sheet";
 type StaffingView = "setup" | "board" | "kpi";
 type MasterTab = "summary" | "pivot" | "products";
@@ -104,18 +107,30 @@ function navIcon(key: MainView) {
     return <svg {...common}><circle cx="9" cy="8" r="3" /><circle cx="17" cy="9" r="2.5" /><path d="M3 19c1.5-3 4-4 6-4s4.5 1 6 4" /><path d="M14 19c.8-1.7 2-2.6 3.5-2.9" /></svg>;
   }
   if (key === "transport") {
-    return <svg {...common}><rect x="3" y="6" width="18" height="10" rx="2" /><path d="M7 16v2" /><path d="M17 16v2" /><circle cx="8" cy="18" r="1" /><circle cx="16" cy="18" r="1" /></svg>;
+    return <svg {...common}><path d="M5 11V7a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v8H5z" /><path d="M3 13h18" /><circle cx="7.5" cy="17.5" r="1.5" /><circle cx="16.5" cy="17.5" r="1.5" /><path d="M9 9h6" /></svg>;
   }
   if (key === "staffing") {
     return <svg {...common}><path d="M4 21v-4a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v4" /><circle cx="12" cy="7" r="4" /></svg>;
+  }
+  if (key === "master") {
+    return <svg {...common}><ellipse cx="12" cy="5" rx="7" ry="3" /><path d="M5 5v7c0 1.7 3.1 3 7 3s7-1.3 7-3V5" /><path d="M5 12v7c0 1.7 3.1 3 7 3s7-1.3 7-3v-7" /></svg>;
+  }
+  if (key === "useraccess") {
+    return <svg {...common}><circle cx="10" cy="8" r="3" /><path d="M4 19c1.2-2.8 3.5-4 6-4" /><path d="M17 8h3" /><path d="M18.5 6.5v3" /><path d="M15.5 16.5h3" /><path d="M17 15v3" /></svg>;
+  }
+  if (key === "changelog") {
+    return <svg {...common}><path d="M8 6h10" /><path d="M8 12h10" /><path d="M8 18h10" /><path d="M4 6h.01" /><path d="M4 12h.01" /><path d="M4 18h.01" /></svg>;
   }
   return <svg {...common}><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1 1 0 0 0-1.1-.2 1 1 0 0 0-.6.9V20a2 2 0 1 1-4 0v-.2a1 1 0 0 0-.6-.9 1 1 0 0 0-1.1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1 1 0 0 0 .2-1.1 1 1 0 0 0-.9-.6H4a2 2 0 1 1 0-4h.2a1 1 0 0 0 .9-.6 1 1 0 0 0-.2-1.1l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1 1 0 0 0 1.1.2H9a1 1 0 0 0 .6-.9V4a2 2 0 1 1 4 0v.2a1 1 0 0 0 .6.9 1 1 0 0 0 1.1-.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1 1 0 0 0-.2 1.1V9c0 .4.2.7.6.9H20a2 2 0 1 1 0 4h-.2a1 1 0 0 0-.9.6z" /></svg>;
 }
 
 export function OperationsDashboard({ initialData }: { initialData: DashboardSeed }) {
+  const todayIso = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Bangkok" })).toISOString().slice(0, 10);
   const { t } = useLang();
-  const { user, logout, loading } = useAuth();
+  const { user, loading } = useAuth();
   const userRole = user?.role ?? null;
+  const moduleAccess = user?.moduleAccess ?? defaultBoardAccessForRole(userRole);
+  const hasModuleAccess = (board: MainView) => moduleAccess.includes(board);
   const [orders, setOrders] = useState(initialData.orders);
   const [employees, setEmployees] = useState(initialData.employees);
   const [productPackets, setProductPackets] = useState(initialData.productPackets);
@@ -123,20 +138,20 @@ export function OperationsDashboard({ initialData }: { initialData: DashboardSee
   const [transportView, setTransportView] = useState<TransportView>("assign");
   const [staffingView, setStaffingView] = useState<StaffingView>("setup");
   const [masterView, setMasterView] = useState<MasterTab>("summary");
-  const [orderDateStart, setOrderDateStart] = useState("2026-05-12");
-  const [orderDateEnd, setOrderDateEnd] = useState("2026-05-12");
+  const [orderDateStart, setOrderDateStart] = useState(todayIso);
+  const [orderDateEnd, setOrderDateEnd] = useState(todayIso);
   const [orderSearch, setOrderSearch] = useState("");
-  const [transportDate, setTransportDate] = useState("2026-05-12");
+  const [transportDate, setTransportDate] = useState(todayIso);
   const [transportTime, setTransportTime] = useState("ALL");
   const [recheckDriverFilter, setRecheckDriverFilter] = useState("ALL");
   const [recheckStatusFilter, setRecheckStatusFilter] = useState("ALL");
-  const [staffDate, setStaffDate] = useState("2026-05-12");
+  const [staffDate, setStaffDate] = useState(todayIso);
   const [staffTime, setStaffTime] = useState("ALL");
   const [staffPacket, setStaffPacket] = useState("ALL");
-  const [boardDate, setBoardDate] = useState("2026-05-12");
+  const [boardDate, setBoardDate] = useState(todayIso);
   const [pivotGroupBy, setPivotGroupBy] = useState<"agent" | "packet">("agent");
   const [selectedDriver, setSelectedDriver] = useState("");
-  const [selectedSheetSlot, setSelectedSheetSlot] = useState("");
+  const [selectedSheetSlot, setSelectedSheetSlot] = useState("ALL");
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [showEmployeeModal, setShowEmployeeModal] = useState(false);
   const [editingEmployeeId, setEditingEmployeeId] = useState<string | null>(null);
@@ -174,8 +189,18 @@ export function OperationsDashboard({ initialData }: { initialData: DashboardSee
     }
   }, [loading, user]);
 
+  useEffect(() => {
+    if (!hasModuleAccess(mainView)) {
+      const firstAccessible = (["overview", "orderlist", "transport", "staffing", "personnel", "master", "useraccess", "changelog"] as MainView[])
+        .find((board) => hasModuleAccess(board));
+      if (firstAccessible) {
+        setMainView(firstAccessible);
+      }
+    }
+  }, [mainView, moduleAccess]);
+
   const [newOrder, setNewOrder] = useState({
-    date: "2026-05-12",
+    date: todayIso,
     time: "07:00",
     agent: "",
     booking: "",
@@ -1012,41 +1037,28 @@ if (loading) {
   return (
     <div className="app-shell">
       <aside className="sidebar-nav">
-{[
+{([
           ["overview", t("nav.overview")],
-          ...((userRole === "ADMIN" || userRole === "ACCOUNTING" || userRole === "MANAGER") ? [["orderlist", t("nav.orderlist")]] : []),
+          ["orderlist", t("nav.orderlist")],
           ["transport", t("nav.transport")],
-          ...((userRole === "ADMIN" || userRole === "ACCOUNTING" || userRole === "MANAGER" || userRole === "STAFF") ? [["staffing", t("nav.staffing")]] : []),
-          ...((userRole === "ADMIN" || userRole === "MANAGER") ? [["personnel", t("nav.personnel")]] : []),
-          ...((userRole === "ADMIN" || userRole === "ACCOUNTING" || userRole === "MANAGER") ? [["master", t("nav.master")]] : [])
-        ].map(([key, label]) => (
+          ["staffing", t("nav.staffing")],
+          ["personnel", t("nav.personnel")],
+          ["master", t("nav.master")],
+          ["useraccess", "ตั้งค่าผู้ใช้"],
+          ["changelog", "บันทึกแก้ไข"]
+        ] as [MainView, string][])
+          .filter(([key]) => hasModuleAccess(key))
+          .map(([key, label]) => (
           <button
             className={`sidebar-item ${mainView === key ? "active" : ""}`}
             key={key}
-            onClick={() => setMainView(key as MainView)}
+            onClick={() => setMainView(key)}
             type="button"
           >
-            <span className="sidebar-icon">{navIcon(key as MainView)}</span>
+            <span className="sidebar-icon">{navIcon(key)}</span>
             <span>{label}</span>
           </button>
         ))}
-        {userRole && userRole !== "DRIVER" && (
-          <button
-            className="sidebar-item"
-            onClick={() => logout()}
-            type="button"
-            style={{ marginTop: "auto", color: "#94a3b8", borderTop: "1px solid #1e293b" }}
-          >
-            <span className="sidebar-icon">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-                <polyline points="16 17 21 12 16 7"/>
-                <line x1="21" y1="12" x2="9" y2="12"/>
-              </svg>
-            </span>
-            <span>ออกจากระบบ</span>
-          </button>
-        )}
       </aside>
 
       <div className="content-area">
@@ -1377,6 +1389,8 @@ if (loading) {
                 orders={transportOrders}
                 drivers={drivers}
                 vehicles={vehicles}
+                transportDate={transportDate}
+                onSetTransportDate={setTransportDate}
                 savingOrderId={transportSavingOrderId}
                 onChangeLocalAdminNote={updateOrderAdminNote}
                 onSaveTransport={saveTransportAssignment}
@@ -1408,6 +1422,7 @@ if (loading) {
 {transportView === "sheet" ? (
               <TransportSheetView
                 driverNames={driverNames}
+                drivers={drivers}
                 orders={orders}
                 transportDate={transportDate}
                 timeSlots={initialData.timeSlots}
@@ -1415,9 +1430,11 @@ if (loading) {
                 selectedSheetSlot={selectedSheetSlot}
                 onSelectDriverAndSlot={(driver, slot) => {
                   setSelectedDriver(driver);
-                  setSelectedSheetSlot(slot);
+                  setSelectedSheetSlot(slot || "ALL");
                 }}
                 onPrint={printJobSheetOnly}
+                onSetTransportDate={setTransportDate}
+                issuedBy={user?.displayName ?? "-"}
               />
             ) : null}
           </div>
@@ -1518,7 +1535,15 @@ if (loading) {
           onTogglePacketActive={toggleProductPacketActive}
           formatStatus={formatStatus}
           statusClass={statusClass}
-        />
+/>
+      ) : null}
+
+      {mainView === "useraccess" && hasModuleAccess("useraccess") ? (
+        <UserAccessView initialUsers={[]} />
+      ) : null}
+
+      {mainView === "changelog" && hasModuleAccess("changelog") ? (
+        <ChangeLogView />
       ) : null}
 
       {showOrderModal ? (
