@@ -1,27 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ALLOWED_ROLES_EMPLOYEE_WRITE } from "../../../lib/auth/role-guards";
+import { getRoleFromRequest, roleGuard } from "../../../lib/auth/server-session";
 import { createPrismaClient } from "../../../lib/prisma";
-
-function getRole(request: NextRequest): string | null {
-  return request.headers.get("x-user-role");
-}
-
-function roleGuard(role: string | null, allowed: string[]): NextResponse | null {
-  if (!role || !allowed.includes(role)) {
-    return new NextResponse(JSON.stringify({ error: "Insufficient permissions" }), {
-      status: 403,
-      headers: { "Content-Type": "application/json" }
-    });
-  }
-  return null;
-}
 
 function mapEmployeeRole(role: string): "STAFF" | "DRIVER" {
   return role === "Driver" ? "DRIVER" : "STAFF";
 }
 
 export async function POST(request: NextRequest) {
-  const role = getRole(request);
+  const role = getRoleFromRequest(request);
   const denied = roleGuard(role, ALLOWED_ROLES_EMPLOYEE_WRITE);
   if (denied) return denied;
 
@@ -78,7 +65,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
-  const role = getRole(request);
+  const role = getRoleFromRequest(request);
   const denied = roleGuard(role, ALLOWED_ROLES_EMPLOYEE_WRITE);
   if (denied) return denied;
 

@@ -1,95 +1,202 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import type { BoardKey, UserRole } from "../lib/auth/role-guards";
-import { ALL_BOARD_KEYS, ALL_ROLES, ROLE_LABELS, defaultBoardAccessForRole, normalizeBoardAccess } from "../lib/auth/role-guards";
+import { useEffect, useMemo, useState } from "react";
+import { useAuth } from "../lib/auth/auth-context";
+import type { BoardKey, BoardPermission, ModuleAccessMap, UserRole } from "../lib/auth/role-guards";
+import {
+  ALL_BOARD_KEYS,
+  ALL_ROLES,
+  ROLE_LABELS,
+  defaultBoardAccessForRole,
+  defaultModuleAccessForRole,
+  listAccessibleBoards,
+  normalizeModuleAccess
+} from "../lib/auth/role-guards";
 
 export type UserRecord = {
   id: string;
+  username: string;
   email: string;
   displayName: string;
   role: UserRole;
   active: boolean;
-  moduleAccess?: BoardKey[];
+  moduleAccess?: ModuleAccessMap;
 };
 
 type Props = { initialUsers: UserRecord[] };
+
 const DEMO_USERS: UserRecord[] = [
-  { id: "demo-superadmin-001", email: "superadmin@zipline.com", displayName: "SuperAdmin Dev", role: "SUPERADMIN", active: true, moduleAccess: ALL_BOARD_KEYS },
-  { id: "demo-admin-001", email: "owner@zipline.com", displayName: "Owner Dev", role: "ADMIN", active: true, moduleAccess: defaultBoardAccessForRole("ADMIN") },
-  { id: "demo-officer-001", email: "officer@zipline.com", displayName: "Officer Dev", role: "MANAGER", active: true, moduleAccess: defaultBoardAccessForRole("MANAGER") },
-  { id: "demo-account-001", email: "accounting@zipline.com", displayName: "Account Dev", role: "ACCOUNTING", active: true, moduleAccess: defaultBoardAccessForRole("ACCOUNTING") },
-  { id: "demo-staff-001", email: "staff@zipline.com", displayName: "Staff Dev", role: "STAFF", active: true, moduleAccess: defaultBoardAccessForRole("STAFF") },
-  { id: "demo-driver-001", email: "driver@zipline.com", displayName: "Driver Dev", role: "DRIVER", active: true, moduleAccess: defaultBoardAccessForRole("DRIVER") }
+  { id: "demo-superadmin-001", username: "superadmin", email: "superadmin@demo.local", displayName: "SuperAdmin Dev", role: "SUPERADMIN", active: true, moduleAccess: defaultModuleAccessForRole("SUPERADMIN") },
+  { id: "demo-manager-001", username: "manager", email: "manager@demo.local", displayName: "Manager Dev", role: "MANAGER", active: true, moduleAccess: { ...defaultModuleAccessForRole("SUPERADMIN"), useraccess: undefined } },
+  { id: "demo-officer-001", username: "officer", email: "officer@demo.local", displayName: "Officer Dev", role: "MANAGER", active: true, moduleAccess: defaultModuleAccessForRole("MANAGER") },
+  { id: "demo-account-001", username: "account", email: "account@demo.local", displayName: "Account Dev", role: "ACCOUNTING", active: true, moduleAccess: defaultModuleAccessForRole("ACCOUNTING") },
+  { id: "demo-staff-001", username: "staff", email: "staff@demo.local", displayName: "Staff Dev", role: "STAFF", active: true, moduleAccess: defaultModuleAccessForRole("STAFF") },
+  { id: "demo-driver-001", username: "driver", email: "driver@demo.local", displayName: "Driver Dev", role: "DRIVER", active: true, moduleAccess: defaultModuleAccessForRole("DRIVER") }
 ];
 
 const BOARD_LABELS: Record<BoardKey, string> = {
   overview: "ภาพรวม",
-  orderlist: "ออเดอร์",
+  orderlist: "รายการออเดอร์",
   transport: "งานจัดรถ",
-  staffing: "งานสตาฟ",
+  staffing: "งาน Staff",
   personnel: "บุคลากร",
-  master: "มาสเตอร์",
+  accounting: "งานบัญชี",
+  changelog: "บันทึกแก้ไข",
   useraccess: "ตั้งค่าผู้ใช้",
-  changelog: "บันทึกแก้ไข"
+  master: "Master Ops"
+};
+
+const BOARD_HELP: Record<BoardKey, string> = {
+  overview: "Dashboard and daily summaries",
+  orderlist: "Bookings, updates, and customer records",
+  transport: "Driver, vehicle, and job sheet operations",
+  staffing: "Staff allocation, board, and KPI flow",
+  personnel: "Employee records and contact information",
+  accounting: "Accounting workspace placeholder",
+  changelog: "System change history and audit timeline",
+  useraccess: "Roles and access control settings",
+  master: "Master data and package management"
+};
+
+type CreateDraft = {
+  username: string;
+  email: string;
+  displayName: string;
+  password: string;
+  role: UserRole;
+};
+
+const EMPTY_CREATE_DRAFT: CreateDraft = {
+  username: "",
+  email: "",
+  displayName: "",
+  password: "",
+  role: "STAFF"
 };
 
 export function UserAccessView({ initialUsers }: Props) {
+  const { user: currentUser } = useAuth();
+  const isSuperadmin = currentUser?.role === "SUPERADMIN";
   const [users, setUsers] = useState<UserRecord[]>(initialUsers);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<UserRole | "ALL">("ALL");
   const [editingUser, setEditingUser] = useState<UserRecord | null>(null);
   const [draftRole, setDraftRole] = useState<UserRole>("STAFF");
-  const [draftBoards, setDraftBoards] = useState<BoardKey[]>([]);
+  const [draftAccess, setDraftAccess] = useState<ModuleAccessMap>({});
   const [saving, setSaving] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createDraft, setCreateDraft] = useState<CreateDraft>(EMPTY_CREATE_DRAFT);
+  const [createSaving, setCreateSaving] = useState(false);
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
 
   useEffect(() => {
     if (initialUsers.length > 0) return;
     fetch("/api/users")
-      .then((r) => r.ok ? r.json() : [])
+      .then((r) => (r.ok ? r.json() : []))
       .then((data: UserRecord[]) => setUsers(data.length > 0 ? data : DEMO_USERS))
       .catch(() => setUsers(DEMO_USERS));
   }, [initialUsers.length]);
 
-  const filtered = users.filter((u) => {
-    const byText = u.displayName.toLowerCase().includes(search.toLowerCase()) || u.email.toLowerCase().includes(search.toLowerCase());
-    const byRole = roleFilter === "ALL" || u.role === roleFilter;
-    return byText && byRole;
-  });
+  const filtered = useMemo(
+    () =>
+      users.filter((user) => {
+        const query = search.trim().toLowerCase();
+        const byText =
+          !query ||
+          user.displayName.toLowerCase().includes(query) ||
+          user.email.toLowerCase().includes(query) ||
+          user.username.toLowerCase().includes(query);
+        const byRole = roleFilter === "ALL" || user.role === roleFilter;
+        return byText && byRole;
+      }),
+    [roleFilter, search, users]
+  );
 
   function startEdit(user: UserRecord) {
     setEditingUser(user);
     setDraftRole(user.role);
-    setDraftBoards(normalizeBoardAccess(user.moduleAccess, user.role));
-  }
-
-  function toggleBoard(board: BoardKey) {
-    if (draftRole === "SUPERADMIN") return;
-    const allowed = new Set(defaultBoardAccessForRole(draftRole));
-    if (!allowed.has(board)) return;
-    setDraftBoards((current) => current.includes(board) ? current.filter((b) => b !== board) : [...current, board]);
+    setDraftAccess(normalizeModuleAccess(user.moduleAccess, user.role));
   }
 
   function applyRole(role: UserRole) {
     setDraftRole(role);
-    setDraftBoards(normalizeBoardAccess(draftBoards, role));
+    setDraftAccess(normalizeModuleAccess(draftAccess, role));
+  }
+
+  function setBoardPermission(board: BoardKey, permission: BoardPermission | "none") {
+    if (draftRole === "SUPERADMIN") return;
+    const allowed = new Set(defaultBoardAccessForRole(draftRole));
+    if (!allowed.has(board)) return;
+
+    setDraftAccess((current) => {
+      const next = { ...current };
+      if (permission === "none") {
+        delete next[board];
+      } else {
+        next[board] = permission;
+      }
+      return next;
+    });
   }
 
   async function saveEdit() {
     if (!editingUser) return;
     setSaving(true);
     try {
-      const res = await fetch("/api/users", {
+      const response = await fetch("/api/users", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: editingUser.id, role: draftRole, moduleAccess: draftRole === "SUPERADMIN" ? ALL_BOARD_KEYS : draftBoards })
+        body: JSON.stringify({
+          id: editingUser.id,
+          role: draftRole,
+          moduleAccess: draftRole === "SUPERADMIN" ? defaultModuleAccessForRole("SUPERADMIN") : draftAccess
+        })
       });
-      if (!res.ok) return;
-      const updated: UserRecord = await res.json();
-      setUsers((current) => current.map((u) => u.id === updated.id ? updated : u));
+      if (!response.ok) return;
+      const updated: UserRecord = await response.json();
+      setUsers((current) => current.map((user) => (user.id === updated.id ? updated : user)));
       setEditingUser(null);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function createUser() {
+    if (!isSuperadmin) return;
+    setCreateSaving(true);
+    try {
+      const response = await fetch("/api/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...createDraft,
+          username: createDraft.username.trim().toLowerCase(),
+          email: createDraft.email.trim().toLowerCase(),
+          moduleAccess: createDraft.role === "SUPERADMIN" ? defaultModuleAccessForRole("SUPERADMIN") : defaultModuleAccessForRole(createDraft.role)
+        })
+      });
+      if (!response.ok) return;
+      const created: UserRecord = await response.json();
+      setUsers((current) => [...current, created]);
+      setCreateDraft(EMPTY_CREATE_DRAFT);
+      setShowCreateModal(false);
+    } finally {
+      setCreateSaving(false);
+    }
+  }
+
+  async function deleteUser(userId: string) {
+    if (!isSuperadmin) return;
+    const confirmDelete = window.confirm("ยืนยันการลบผู้ใช้งาน?");
+    if (!confirmDelete) return;
+    setDeletingUserId(userId);
+    try {
+      const response = await fetch(`/api/users?id=${encodeURIComponent(userId)}`, { method: "DELETE" });
+      if (!response.ok) return;
+      setUsers((current) => current.filter((user) => user.id !== userId));
+      if (editingUser?.id === userId) setEditingUser(null);
+    } finally {
+      setDeletingUserId(null);
     }
   }
 
@@ -99,70 +206,211 @@ export function UserAccessView({ initialUsers }: Props) {
         <div className="section-header">
           <div>
             <h2>ตั้งค่าผู้ใช้</h2>
-            <p>กำหนดบทบาทและสิทธิ์รายบอร์ด</p>
+            <p>จัดการบทบาท สิทธิ์การเข้าถึง และสิทธิ์แก้ไขรายบอร์ด</p>
           </div>
+          {isSuperadmin ? (
+            <button className="primary-button order-add-button" type="button" onClick={() => setShowCreateModal(true)}>
+              + เพิ่มผู้ใช้งาน
+            </button>
+          ) : null}
         </div>
+
         <div className="user-access-toolbar">
-          <input className="user-access-input" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="ค้นหาชื่อหรืออีเมล" />
-          <select className="user-access-select" value={roleFilter} onChange={(e) => setRoleFilter(e.target.value as UserRole | "ALL")}>
+          <input
+            className="user-access-input"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="ค้นหาชื่อผู้ใช้ ชื่อแสดงผล หรืออีเมล"
+          />
+          <select className="user-access-select" value={roleFilter} onChange={(event) => setRoleFilter(event.target.value as UserRole | "ALL")}>
             <option value="ALL">ทุกสิทธิ์</option>
-            {ALL_ROLES.map((r) => <option value={r} key={r}>{ROLE_LABELS[r]}</option>)}
+            {ALL_ROLES.map((role) => (
+              <option key={role} value={role}>
+                {ROLE_LABELS[role]}
+              </option>
+            ))}
           </select>
         </div>
-        <table className="user-access-table">
-          <thead>
-            <tr style={{ borderBottom: "1px solid #e2e8f0" }}>
-              <th style={{ textAlign: "left", padding: "8px 10px", fontSize: 12 }}>ผู้ใช้</th>
-              <th style={{ textAlign: "left", padding: "8px 10px", fontSize: 12 }}>อีเมล</th>
-              <th style={{ textAlign: "left", padding: "8px 10px", fontSize: 12 }}>บทบาท</th>
-              <th style={{ textAlign: "left", padding: "8px 10px", fontSize: 12 }}>จัดการ</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.length === 0 ? (
+
+        <div className="user-access-table-shell">
+          <table className="user-access-table">
+            <thead>
               <tr>
-                <td colSpan={4} style={{ padding: "16px 10px", color: "#64748b", textAlign: "center" }}>ไม่พบผู้ใช้</td>
+                <th>ผู้ใช้</th>
+                <th>อีเมล</th>
+                <th>ชื่อผู้ใช้งาน</th>
+                <th>บทบาท</th>
+                <th>สิทธิ์บอร์ด</th>
+                <th>จัดการ</th>
               </tr>
-            ) : filtered.map((user) => (
-              <tr key={user.id} className="user-access-row">
-                <td style={{ padding: "11px 10px", fontWeight: 600 }}>{user.displayName}</td>
-                <td style={{ padding: "9px 10px", fontSize: 13 }}>{user.email}</td>
-                <td style={{ padding: "9px 10px" }}>{ROLE_LABELS[user.role]}</td>
-                <td style={{ padding: "9px 10px" }}>
-                  <button className="indigo-button" type="button" onClick={() => startEdit(user)} style={{ borderRadius: 10, padding: "8px 14px", fontWeight: 700 }}>แก้ไขสิทธิ์</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="user-access-empty">ไม่พบผู้ใช้</td>
+                </tr>
+              ) : (
+                filtered.map((user) => {
+                  const boards = listAccessibleBoards(user.moduleAccess);
+                  return (
+                    <tr key={user.id} className="user-access-row">
+                      <td>
+                        <div className="user-access-usercell">
+                          <span className="user-access-avatar">{user.displayName.slice(0, 1).toUpperCase()}</span>
+                          <div>
+                            <strong>{user.displayName}</strong>
+                            <span>{user.active ? "Active" : "Inactive"}</span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="user-access-email">{user.email}</td>
+                      <td><code className="user-access-username">{user.username}</code></td>
+                      <td>
+                        <span className="user-access-role-pill">{ROLE_LABELS[user.role]}</span>
+                      </td>
+                      <td>
+                        <div className="user-access-boardlist">
+                          {boards.slice(0, 4).map((board) => (
+                            <span key={board} className="user-access-boardpill">
+                              {BOARD_LABELS[board]}
+                            </span>
+                          ))}
+                          {boards.length > 4 ? <span className="user-access-boardpill muted">+{boards.length - 4}</span> : null}
+                        </div>
+                      </td>
+                      <td>
+                        <div className="user-access-actions">
+                          <button className="indigo-button user-access-edit-button" type="button" onClick={() => startEdit(user)}>
+                            แก้ไขสิทธิ์
+                          </button>
+                          {isSuperadmin ? (
+                            <button className="danger-button user-access-delete-button" type="button" onClick={() => deleteUser(user.id)} disabled={deletingUserId === user.id}>
+                              {deletingUserId === user.id ? "กำลังลบ..." : "ลบผู้ใช้งาน"}
+                            </button>
+                          ) : null}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
+
+      {showCreateModal ? (
+        <div className="modal-backdrop">
+          <div className="modal-card user-access-create-modal">
+            <h3>เพิ่มผู้ใช้งานใหม่</h3>
+            <div className="modal-grid user-access-create-grid">
+              <label>
+                <span>ชื่อผู้ใช้งาน</span>
+                <input value={createDraft.username} onChange={(event) => setCreateDraft((current) => ({ ...current, username: event.target.value }))} placeholder="supervisor01" />
+              </label>
+              <label>
+                <span>อีเมล</span>
+                <input value={createDraft.email} onChange={(event) => setCreateDraft((current) => ({ ...current, email: event.target.value }))} placeholder="manager@demo.local" />
+              </label>
+              <label>
+                <span>ชื่อแสดงผล</span>
+                <input value={createDraft.displayName} onChange={(event) => setCreateDraft((current) => ({ ...current, displayName: event.target.value }))} placeholder="Manager Dev" />
+              </label>
+              <label>
+                <span>รหัสผ่าน</span>
+                <input value={createDraft.password} onChange={(event) => setCreateDraft((current) => ({ ...current, password: event.target.value }))} type="password" />
+              </label>
+              <label className="user-access-role-field">
+                <span>บทบาท</span>
+                <select className="user-access-select" value={createDraft.role} onChange={(event) => setCreateDraft((current) => ({ ...current, role: event.target.value as UserRole }))}>
+                  {ALL_ROLES.map((role) => (
+                    <option key={role} value={role}>
+                      {ROLE_LABELS[role]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <div className="modal-actions">
+              <button type="button" onClick={() => setShowCreateModal(false)}>ยกเลิก</button>
+              <button type="button" className="primary-button" onClick={createUser} disabled={createSaving}>
+                {createSaving ? "กำลังบันทึก..." : "สร้างผู้ใช้งาน"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {editingUser ? (
         <div className="modal-backdrop">
           <div className="modal-card large user-access-modal">
-            <h3>สิทธิ์ผู้ใช้: {editingUser.displayName}</h3>
-            <label style={{ display: "block", marginBottom: 10 }}>
-              <span style={{ display: "block", fontSize: 12, marginBottom: 4, color: "#64748b" }}>บทบาท</span>
-              <select className="user-access-select" value={draftRole} onChange={(e) => applyRole(e.target.value as UserRole)} style={{ width: "100%" }}>
-                {ALL_ROLES.map((role) => <option value={role} key={role}>{ROLE_LABELS[role]}</option>)}
+            <div className="user-access-modal-head">
+              <div>
+                <h3>แก้ไขสิทธิ์ผู้ใช้</h3>
+                <p>{editingUser.displayName} · {editingUser.username}</p>
+              </div>
+              <span className="user-access-role-badge">{ROLE_LABELS[draftRole]}</span>
+            </div>
+
+            <label className="user-access-role-field">
+              <span>บทบาท</span>
+              <select className="user-access-select" value={draftRole} onChange={(event) => applyRole(event.target.value as UserRole)}>
+                {ALL_ROLES.map((role) => (
+                  <option key={role} value={role}>
+                    {ROLE_LABELS[role]}
+                  </option>
+                ))}
               </select>
             </label>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10 }}>
+
+            <div className="user-access-permission-grid">
               {ALL_BOARD_KEYS.map((board) => {
-                const roleDefault = new Set(defaultBoardAccessForRole(draftRole));
-                const enabledByRole = draftRole === "SUPERADMIN" || roleDefault.has(board);
-                const checked = draftRole === "SUPERADMIN" ? true : draftBoards.includes(board);
+                const allowed = draftRole === "SUPERADMIN" || defaultBoardAccessForRole(draftRole).includes(board);
+                const permission = draftRole === "SUPERADMIN" ? "edit" : draftAccess[board] ?? "none";
                 return (
-                  <label key={board} className="user-access-checkcard" style={{ opacity: enabledByRole ? 1 : 0.45 }}>
-                    <input type="checkbox" checked={checked} disabled={!enabledByRole} onChange={() => toggleBoard(board)} />
-                    <span style={{ fontWeight: 600 }}>{BOARD_LABELS[board]}</span>
-                  </label>
+                  <div key={board} className={`user-access-permission-card${allowed ? "" : " disabled"}`}>
+                    <div className="user-access-permission-copy">
+                      <strong>{BOARD_LABELS[board]}</strong>
+                      <span>{BOARD_HELP[board]}</span>
+                    </div>
+                    <div className="user-access-permission-toggle">
+                      <button
+                        type="button"
+                        className={`permission-segment${permission === "none" ? " active none" : ""}`}
+                        disabled={!allowed || draftRole === "SUPERADMIN"}
+                        onClick={() => setBoardPermission(board, "none")}
+                      >
+                        No Access
+                      </button>
+                      <button
+                        type="button"
+                        className={`permission-segment${permission === "view" ? " active" : ""}`}
+                        disabled={!allowed || draftRole === "SUPERADMIN"}
+                        onClick={() => setBoardPermission(board, "view")}
+                      >
+                        View
+                      </button>
+                      <button
+                        type="button"
+                        className={`permission-segment${permission === "edit" ? " active edit" : ""}`}
+                        disabled={!allowed}
+                        onClick={() => setBoardPermission(board, "edit")}
+                      >
+                        View + Edit
+                      </button>
+                    </div>
+                  </div>
                 );
               })}
             </div>
+
             <div className="modal-actions">
-              <button type="button" onClick={() => setEditingUser(null)}>ยกเลิก</button>
-              <button type="button" className="primary-button" onClick={saveEdit} disabled={saving}>{saving ? "กำลังบันทึก..." : "บันทึก"}</button>
+              <button type="button" onClick={() => setEditingUser(null)}>
+                ยกเลิก
+              </button>
+              <button type="button" className="primary-button" onClick={saveEdit} disabled={saving}>
+                {saving ? "กำลังบันทึก..." : "บันทึก"}
+              </button>
             </div>
           </div>
         </div>

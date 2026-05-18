@@ -1,16 +1,17 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, useRef, ReactNode } from "react";
-import type { BoardKey } from "./role-guards";
+import type { ModuleAccessMap } from "./role-guards";
 
 export type UserRole = "SUPERADMIN" | "ADMIN" | "ACCOUNTING" | "MANAGER" | "STAFF" | "DRIVER";
 
 export type CurrentUser = {
   id: string;
+  username: string;
   email: string;
   displayName: string;
   role: UserRole;
-  moduleAccess?: BoardKey[];
+  moduleAccess?: ModuleAccessMap;
 } | null;
 
 type AuthContextType = {

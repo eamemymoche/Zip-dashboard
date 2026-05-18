@@ -5,13 +5,18 @@ import { createPrismaClient } from "../../../../lib/prisma";
 const SESSION_COOKIE = "zcc_session";
 const SESSION_SECRET = process.env.SESSION_SECRET ?? "dev-secret-change-in-production";
 
-function parseSessionToken(token: string): { userId: string; role: string; ts: number } | null {
+function hashUserAgent(userAgent: string | null) {
+  return createHash("sha256").update((userAgent ?? "unknown") + SESSION_SECRET).digest("hex").slice(0, 12);
+}
+
+function parseSessionToken(token: string, userAgent: string | null): { userId: string; role: string; ts: number } | null {
   try {
     const [payload, sig] = token.split(".");
     const expectedSig = createHash("sha256").update(payload + SESSION_SECRET).digest("hex").slice(0, 16);
     if (sig !== expectedSig) return null;
     const decoded = Buffer.from(payload, "base64url").toString("utf8");
-    const [userId, role, ts] = decoded.split(":");
+    const [userId, role, ts, uaHash] = decoded.split(":");
+    if (uaHash !== hashUserAgent(userAgent)) return null;
     return { userId, role, ts: Number(ts) };
   } catch {
     return null;
@@ -28,7 +33,7 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const session = parseSessionToken(token);
+  const session = parseSessionToken(token, request.headers.get("user-agent"));
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -45,6 +50,7 @@ export async function PATCH(request: NextRequest) {
       where: { id: session.userId },
       select: {
         id: true,
+        username: true,
         email: true,
         displayName: true,
         role: true,
@@ -79,6 +85,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({
         user: {
           id: user.id,
+          username: user.username,
           email: user.email,
           displayName: user.displayName,
           role: user.role
@@ -91,6 +98,7 @@ export async function PATCH(request: NextRequest) {
       data: updateData,
       select: {
         id: true,
+        username: true,
         email: true,
         displayName: true,
         role: true

@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 
 export type UserRole = "SUPERADMIN" | "ADMIN" | "ACCOUNTING" | "MANAGER" | "STAFF" | "DRIVER";
-export type BoardKey = "overview" | "orderlist" | "transport" | "staffing" | "personnel" | "master" | "useraccess" | "changelog";
+export type BoardKey = "overview" | "orderlist" | "transport" | "staffing" | "personnel" | "accounting" | "changelog" | "useraccess" | "master";
+export type BoardPermission = "view" | "edit";
+export type ModuleAccessMap = Partial<Record<BoardKey, BoardPermission>>;
 
 export const ALLOWED_ROLES_WRITE: UserRole[] = ["SUPERADMIN", "ADMIN", "ACCOUNTING", "MANAGER"];
 export const ALLOWED_ROLES_ORDER_WRITE: UserRole[] = ["SUPERADMIN", "ADMIN", "ACCOUNTING", "MANAGER"];
@@ -19,12 +21,13 @@ export const MODULE_ACCESS: Record<string, UserRole[]> = {
   transport: ["SUPERADMIN", "ADMIN", "ACCOUNTING", "MANAGER", "STAFF", "DRIVER"],
   staffing: ["SUPERADMIN", "ADMIN", "ACCOUNTING", "MANAGER", "STAFF"],
   personnel: ["SUPERADMIN", "ADMIN", "MANAGER"],
-  master: ["SUPERADMIN", "ADMIN", "ACCOUNTING", "MANAGER"],
-  useraccess: ["SUPERADMIN", "ADMIN"],
+  accounting: ["SUPERADMIN", "ADMIN", "ACCOUNTING"],
   changelog: ["SUPERADMIN", "ADMIN"],
+  useraccess: ["SUPERADMIN", "ADMIN"],
+  master: ["SUPERADMIN", "ADMIN", "ACCOUNTING", "MANAGER"],
 };
 
-export const ALL_BOARD_KEYS: BoardKey[] = ["overview", "orderlist", "transport", "staffing", "personnel", "master", "useraccess", "changelog"];
+export const ALL_BOARD_KEYS: BoardKey[] = ["overview", "orderlist", "transport", "staffing", "personnel", "accounting", "changelog", "useraccess", "master"];
 
 export const ALL_ROLES: UserRole[] = ["SUPERADMIN", "ADMIN", "ACCOUNTING", "MANAGER", "STAFF", "DRIVER"];
 
@@ -32,7 +35,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   SUPERADMIN: "Super Admin",
   ADMIN: "Admin",
   ACCOUNTING: "Account",
-  MANAGER: "Officer",
+  MANAGER: "Manager",
   STAFF: "Staff",
   DRIVER: "Driver",
 };
@@ -43,17 +46,67 @@ export function defaultBoardAccessForRole(role: UserRole | null): BoardKey[] {
   return ALL_BOARD_KEYS.filter((board) => MODULE_ACCESS[board]?.includes(role));
 }
 
+export function defaultModuleAccessForRole(role: UserRole | null): ModuleAccessMap {
+  return defaultBoardAccessForRole(role).reduce<ModuleAccessMap>((map, board) => {
+    map[board] = "edit";
+    return map;
+  }, {});
+}
+
 export function normalizeBoardAccess(input: unknown, role: UserRole | null): BoardKey[] {
-  const defaultBoards = defaultBoardAccessForRole(role);
+  return Object.keys(normalizeModuleAccess(input, role)) as BoardKey[];
+}
+
+export function normalizeModuleAccess(input: unknown, role: UserRole | null): ModuleAccessMap {
+  const defaults = defaultModuleAccessForRole(role);
   if (role === "SUPERADMIN") {
-    return [...ALL_BOARD_KEYS];
+    return { ...defaultModuleAccessForRole(role) };
   }
-  if (!Array.isArray(input)) {
-    return defaultBoards;
+
+  if (!input) {
+    return defaults;
   }
-  const set = new Set(input.filter((value): value is BoardKey => typeof value === "string" && ALL_BOARD_KEYS.includes(value as BoardKey)));
-  const allowedByRole = new Set(defaultBoards);
-  return [...set].filter((board) => allowedByRole.has(board));
+
+  const allowedBoards = new Set(
+    role === "MANAGER"
+      ? ALL_BOARD_KEYS.filter((board) => board !== "useraccess")
+      : defaultBoardAccessForRole(role)
+  );
+  const next: ModuleAccessMap = {};
+
+  if (Array.isArray(input)) {
+    for (const value of input) {
+      if (typeof value === "string" && allowedBoards.has(value as BoardKey)) {
+        next[value as BoardKey] = "edit";
+      }
+    }
+    return next;
+  }
+
+  if (typeof input === "object") {
+    for (const [rawBoard, rawPermission] of Object.entries(input as Record<string, unknown>)) {
+      if (!allowedBoards.has(rawBoard as BoardKey)) continue;
+      if (rawPermission === "view" || rawPermission === "edit") {
+        next[rawBoard as BoardKey] = rawPermission;
+      }
+    }
+    return next;
+  }
+
+  return defaults;
+}
+
+export function listAccessibleBoards(access: ModuleAccessMap | null | undefined): BoardKey[] {
+  if (!access) return [];
+  return ALL_BOARD_KEYS.filter((board) => access[board] === "view" || access[board] === "edit");
+}
+
+export function canViewBoard(access: ModuleAccessMap | null | undefined, board: BoardKey): boolean {
+  return access?.[board] === "view" || access?.[board] === "edit";
+}
+
+export function canEditBoard(access: ModuleAccessMap | null | undefined, board: BoardKey): boolean {
+  return access?.[board] === "edit";
 }
 
 export function hasAccess(role: UserRole | null, allowed: UserRole[]): boolean {

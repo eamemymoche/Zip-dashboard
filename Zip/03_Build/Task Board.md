@@ -358,6 +358,12 @@ Using live local PostgreSQL at `localhost:5432/zipline` and the running local ap
 - Task 16 is satisfied for this phase.
 - A true click-by-click browser walkthrough is still optional follow-up, but it is not required to move to the next step.
 
+**2026-05-18 follow-up note:**
+- The original Task 16 live DB verification remains valid.
+- Authentication has since been upgraded from email-first demo login to username-capable login with stronger session/rate-limit safeguards.
+- Seed/demo accounts now use plain usernames such as `superadmin`, `manager`, `officer`, `account`, `staff`, and `driver`.
+- If local PostgreSQL is reseeded on the latest schema, smoke verification should be rerun once using the new username-based credentials to refresh the evidence trail.
+
 **Bugs found and fixed during Task 16 verification:**
 - `apps/web/lib/prisma.ts` now loads `.env.local` / `.env` so `DATABASE_URL` is available to the running app server, not only Prisma CLI tooling.
 - `apps/web/app/api/auth/login/route.ts` now prefers the DB-backed user path before local dev fallback, so local PostgreSQL can actually be exercised.

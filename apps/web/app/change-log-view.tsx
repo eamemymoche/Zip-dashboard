@@ -37,10 +37,11 @@ const DOMAIN_COLORS: Record<string, { bg: string; text: string }> = {
 const PAGE_SIZE = 20;
 
 export function ChangeLogView() {
+  const todayIso = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Bangkok" })).toISOString().slice(0, 10);
   const [activeTab, setActiveTab] = useState<Tab>("all");
   const [search, setSearch] = useState("");
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
+  const [fromDate, setFromDate] = useState(todayIso);
+  const [toDate, setToDate] = useState(todayIso);
   const [items, setItems] = useState<AuditLogItem[]>([]);
   const [page, setPage] = useState(1);
   const [pageCount, setPageCount] = useState(0);

@@ -1,11 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+
+function EyeIcon({ crossed }: { crossed: boolean }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z" />
+      <circle cx="12" cy="12" r="2.5" />
+      {crossed ? <path d="M4 20 20 4" /> : null}
+    </svg>
+  );
+}
 
 export default function LoginPage() {
-  const router = useRouter();
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -19,12 +27,12 @@ export default function LoginPage() {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ username, password })
       });
       if (res.ok) {
         window.location.replace("/");
       } else {
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         setError(data.error ?? "Login failed");
       }
     } finally {
@@ -34,24 +42,25 @@ export default function LoginPage() {
 
   return (
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#0f172a" }}>
-      <form onSubmit={handleSubmit} style={{ background: "#1e293b", padding: "32px", borderRadius: "12px", width: "360px", display: "flex", flexDirection: "column", gap: "16px" }}>
+      <form onSubmit={handleSubmit} style={{ background: "#1e293b", padding: "32px", borderRadius: "16px", width: "380px", display: "flex", flexDirection: "column", gap: "16px", boxShadow: "0 24px 60px rgba(2, 6, 23, 0.36)" }}>
         <div style={{ textAlign: "center", marginBottom: "8px" }}>
-          <div style={{ fontSize: "28px", marginBottom: "4px" }}>ZIPLINE</div>
+          <div style={{ fontSize: "28px", marginBottom: "4px", color: "#f8fafc", fontWeight: 800 }}>ZIPLINE</div>
           <div style={{ color: "#94a8b8", fontSize: "13px" }}>Command Center</div>
         </div>
         {error ? (
-          <div style={{ background: "#7f1d1d", color: "#fca5a5", padding: "10px", borderRadius: "6px", fontSize: "13px" }}>
+          <div style={{ background: "#7f1d1d", color: "#fecaca", padding: "12px", borderRadius: "10px", fontSize: "13px", lineHeight: 1.45 }}>
             {error}
           </div>
         ) : null}
         <label style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "13px", color: "#94a8b8" }}>
-          Email
+          Username
           <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            type="text"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
             required
-            style={{ padding: "10px", borderRadius: "6px", border: "1px solid #334155", background: "#0f172a", color: "#e2e8f0", fontSize: "14px" }}
+            autoComplete="username"
+            style={{ padding: "12px", borderRadius: "10px", border: "1px solid #334155", background: "#0f172a", color: "#e2e8f0", fontSize: "14px" }}
           />
         </label>
         <label style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "13px", color: "#94a8b8" }}>
@@ -62,33 +71,23 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              style={{ padding: "10px", paddingRight: "40px", borderRadius: "6px", border: "1px solid #334155", background: "#0f172a", color: "#e2e8f0", fontSize: "14px", width: "100%", boxSizing: "border-box" }}
+              autoComplete="current-password"
+              style={{ padding: "12px", paddingRight: "42px", borderRadius: "10px", border: "1px solid #334155", background: "#0f172a", color: "#e2e8f0", fontSize: "14px", width: "100%", boxSizing: "border-box" }}
             />
             <button
               type="button"
-              onClick={() => setShowPassword(v => !v)}
-              style={{ position: "absolute", right: "8px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#64748b", fontSize: "16px", padding: "4px", display: "flex", alignItems: "center" }}
+              onClick={() => setShowPassword((v) => !v)}
+              style={{ position: "absolute", right: "8px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#cbd5e1", padding: "4px", display: "flex", alignItems: "center" }}
               aria-label={showPassword ? "Hide password" : "Show password"}
             >
-              {showPassword ? (
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
-                  <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
-                  <line x1="1" y1="1" x2="23" y2="23"/>
-                </svg>
-              ) : (
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                  <circle cx="12" cy="12" r="3"/>
-                </svg>
-              )}
+              <EyeIcon crossed={showPassword} />
             </button>
           </div>
         </label>
         <button
           type="submit"
           disabled={loading}
-          style={{ padding: "12px", background: "#0f766e", color: "#fff", border: "none", borderRadius: "6px", cursor: loading ? "not-allowed" : "pointer", opacity: loading ? 0.6 : 1, fontSize: "14px", fontWeight: 600 }}
+          style={{ padding: "12px", background: "#0f766e", color: "#fff", border: "none", borderRadius: "10px", cursor: loading ? "not-allowed" : "pointer", opacity: loading ? 0.6 : 1, fontSize: "14px", fontWeight: 700 }}
         >
           {loading ? "Signing in..." : "Sign In"}
         </button>
@@ -98,14 +97,14 @@ export default function LoginPage() {
             <thead>
               <tr style={{ background: "#0f172a" }}>
                 <th style={{ padding: "4px 6px", textAlign: "left", borderBottom: "1px solid #1e293b" }}>Role</th>
-                <th style={{ padding: "4px 6px", textAlign: "left", borderBottom: "1px solid #1e293b" }}>Email</th>
+                <th style={{ padding: "4px 6px", textAlign: "left", borderBottom: "1px solid #1e293b" }}>Username</th>
                 <th style={{ padding: "4px 6px", textAlign: "left", borderBottom: "1px solid #1e293b" }}>Password</th>
               </tr>
             </thead>
             <tbody>
               <tr>
                 <td style={{ padding: "3px 6px" }}>SUPERADMIN</td>
-                <td style={{ padding: "3px 6px", color: "#94a8b8" }}>superadmin@zipline.com</td>
+                <td style={{ padding: "3px 6px", color: "#94a8b8" }}>superadmin</td>
                 <td style={{ padding: "3px 6px", color: "#94a8b8" }}>super123</td>
               </tr>
             </tbody>

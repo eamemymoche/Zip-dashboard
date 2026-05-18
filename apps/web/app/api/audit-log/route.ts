@@ -1,23 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createPrismaClient } from "../../../lib/prisma";
 import { ALLOWED_ROLES_USER_ACCESS } from "../../../lib/auth/role-guards";
+import { getRoleFromRequest, roleGuard } from "../../../lib/auth/server-session";
 
 async function getPrisma() {
   return createPrismaClient();
-}
-
-function getRole(request: NextRequest): string | null {
-  return request.headers.get("x-user-role");
-}
-
-function roleGuard(role: string | null, allowed: string[]): NextResponse | null {
-  if (!role || !allowed.includes(role)) {
-    return new NextResponse(JSON.stringify({ error: "Insufficient permissions" }), {
-      status: 403,
-      headers: { "Content-Type": "application/json" }
-    });
-  }
-  return null;
 }
 
 const DOMAIN_ENTITY_MAP: Record<string, string[]> = {
@@ -29,7 +16,7 @@ const DOMAIN_ENTITY_MAP: Record<string, string[]> = {
 };
 
 export async function GET(request: NextRequest) {
-  const role = getRole(request);
+  const role = getRoleFromRequest(request);
   const denied = roleGuard(role, ALLOWED_ROLES_USER_ACCESS);
   if (denied) return denied;
 

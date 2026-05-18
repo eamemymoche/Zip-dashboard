@@ -1,27 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ALLOWED_ROLES_PICKUP_WRITE } from "../../../lib/auth/role-guards";
+import { getRoleFromRequest, roleGuard } from "../../../lib/auth/server-session";
 import { createPrismaClient } from "../../../lib/prisma";
 
 async function getPrisma() {
   return createPrismaClient();
 }
 
-function getRole(request: NextRequest): string | null {
-  return request.headers.get("x-user-role");
-}
-
-function roleGuard(role: string | null, allowed: string[]): NextResponse | null {
-  if (!role || !allowed.includes(role)) {
-    return new NextResponse(JSON.stringify({ error: "Insufficient permissions" }), {
-      status: 403,
-      headers: { "Content-Type": "application/json" }
-    });
-  }
-  return null;
-}
-
 export async function POST(request: NextRequest) {
-  const role = getRole(request);
+  const role = getRoleFromRequest(request);
   const denied = roleGuard(role, ALLOWED_ROLES_PICKUP_WRITE);
   if (denied) return denied;
   let prisma: Awaited<ReturnType<typeof getPrisma>> | null = null;

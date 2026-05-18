@@ -10,6 +10,7 @@ import StaffingSetupTable from "./staffing-setup-table";
 import StaffingBoardView from "./staffing-board-view";
 import PersonnelView from "./personnel-view";
 import MasterView from "./master-view";
+import AccountingView from "./accounting-view";
 import OrderDetailRow from "./order-detail-row";
 import {
   buildAssistantDriverLoads,
@@ -29,7 +30,7 @@ import {
   buildTransportOrders
 } from "./dashboard-selectors";
 import { useAuth } from "../lib/auth/auth-context";
-import { defaultBoardAccessForRole } from "../lib/auth/role-guards";
+import { canEditBoard, canViewBoard, defaultModuleAccessForRole } from "../lib/auth/role-guards";
 import { UserAccessView } from "./user-access-view";
 import { ChangeLogView } from "./change-log-view";
 import * as XLSX from "xlsx";
@@ -41,7 +42,7 @@ import type {
   OrderRecord
 } from "../lib/ops-data";
 
-type MainView = "overview" | "orderlist" | "personnel" | "transport" | "staffing" | "master" | "useraccess" | "changelog";
+type MainView = "overview" | "orderlist" | "transport" | "staffing" | "personnel" | "accounting" | "changelog" | "useraccess" | "master";
 type TransportView = "assign" | "recheck" | "sheet";
 type StaffingView = "setup" | "board" | "kpi";
 type MasterTab = "summary" | "pivot" | "products";
@@ -112,6 +113,9 @@ function navIcon(key: MainView) {
   if (key === "staffing") {
     return <svg {...common}><path d="M4 21v-4a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v4" /><circle cx="12" cy="7" r="4" /></svg>;
   }
+  if (key === "accounting") {
+    return <svg {...common}><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M7 9h10" /><path d="M7 13h4" /><path d="M15 13h2" /></svg>;
+  }
   if (key === "master") {
     return <svg {...common}><ellipse cx="12" cy="5" rx="7" ry="3" /><path d="M5 5v7c0 1.7 3.1 3 7 3s7-1.3 7-3V5" /><path d="M5 12v7c0 1.7 3.1 3 7 3s7-1.3 7-3v-7" /></svg>;
   }
@@ -124,13 +128,44 @@ function navIcon(key: MainView) {
   return <svg {...common}><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1 1 0 0 0 .2 1.1l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1 1 0 0 0-1.1-.2 1 1 0 0 0-.6.9V20a2 2 0 1 1-4 0v-.2a1 1 0 0 0-.6-.9 1 1 0 0 0-1.1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1 1 0 0 0 .2-1.1 1 1 0 0 0-.9-.6H4a2 2 0 1 1 0-4h.2a1 1 0 0 0 .9-.6 1 1 0 0 0-.2-1.1l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1 1 0 0 0 1.1.2H9a1 1 0 0 0 .6-.9V4a2 2 0 1 1 4 0v.2a1 1 0 0 0 .6.9 1 1 0 0 0 1.1-.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1 1 0 0 0-.2 1.1V9c0 .4.2.7.6.9H20a2 2 0 1 1 0 4h-.2a1 1 0 0 0-.9.6z" /></svg>;
 }
 
+function overviewMetricIcon(kind: "orders" | "pax" | "alert" | "transport" | "staff" | "waiting") {
+  const common = {
+    viewBox: "0 0 24 24",
+    width: 22,
+    height: 22,
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.9,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const
+  };
+
+  if (kind === "orders") {
+    return <svg {...common}><rect x="4" y="3.5" width="16" height="17" rx="2.5" /><path d="M8 8h8" /><path d="M8 12h8" /><path d="M8 16h5" /></svg>;
+  }
+  if (kind === "pax") {
+    return <svg {...common}><path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2" /><circle cx="9.5" cy="7" r="3.5" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 4.13a4 4 0 0 1 0 7.75" /></svg>;
+  }
+  if (kind === "alert") {
+    return <svg {...common}><path d="M12 9v4" /><path d="M12 17h.01" /><path d="M10.3 3.9 2.6 17.2A2 2 0 0 0 4.3 20h15.4a2 2 0 0 0 1.7-2.8L13.7 3.9a2 2 0 0 0-3.4 0z" /></svg>;
+  }
+  if (kind === "transport") {
+    return <svg {...common}><path d="M3 11h18" /><path d="M5 16V8a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v8" /><circle cx="7.5" cy="17.5" r="1.5" /><circle cx="16.5" cy="17.5" r="1.5" /></svg>;
+  }
+  if (kind === "staff") {
+    return <svg {...common}><circle cx="12" cy="7" r="4" /><path d="M5.5 20a6.5 6.5 0 0 1 13 0" /><path d="M18 9.5h4" /><path d="M20 7.5v4" /></svg>;
+  }
+  return <svg {...common}><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>;
+}
+
 export function OperationsDashboard({ initialData }: { initialData: DashboardSeed }) {
   const todayIso = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Bangkok" })).toISOString().slice(0, 10);
-  const { t } = useLang();
+  const { lang, t } = useLang();
   const { user, loading } = useAuth();
   const userRole = user?.role ?? null;
-  const moduleAccess = user?.moduleAccess ?? defaultBoardAccessForRole(userRole);
-  const hasModuleAccess = (board: MainView) => moduleAccess.includes(board);
+  const moduleAccess = user?.moduleAccess ?? defaultModuleAccessForRole(userRole);
+  const hasModuleAccess = (board: MainView) => canViewBoard(moduleAccess, board);
+  const canEditOrders = canEditBoard(moduleAccess, "orderlist");
   const [orders, setOrders] = useState(initialData.orders);
   const [employees, setEmployees] = useState(initialData.employees);
   const [productPackets, setProductPackets] = useState(initialData.productPackets);
@@ -191,7 +226,7 @@ export function OperationsDashboard({ initialData }: { initialData: DashboardSee
 
   useEffect(() => {
     if (!hasModuleAccess(mainView)) {
-      const firstAccessible = (["overview", "orderlist", "transport", "staffing", "personnel", "master", "useraccess", "changelog"] as MainView[])
+      const firstAccessible = (["overview", "orderlist", "transport", "staffing", "personnel", "accounting", "changelog", "useraccess", "master"] as MainView[])
         .find((board) => hasModuleAccess(board));
       if (firstAccessible) {
         setMainView(firstAccessible);
@@ -886,8 +921,13 @@ async function handleNewOrderSubmit(event: React.FormEvent<HTMLFormElement>) {
 
   function printJobSheetOnly() {
     document.body.classList.add("print-job-sheet");
+    const cleanup = () => {
+      document.body.classList.remove("print-job-sheet");
+      window.removeEventListener("afterprint", cleanup);
+    };
+    window.addEventListener("afterprint", cleanup);
     window.print();
-    setTimeout(() => document.body.classList.remove("print-job-sheet"), 300);
+    setTimeout(cleanup, 1200);
   }
 
   async function addProductPacket() {
@@ -1041,11 +1081,12 @@ if (loading) {
           ["overview", t("nav.overview")],
           ["orderlist", t("nav.orderlist")],
           ["transport", t("nav.transport")],
-          ["staffing", t("nav.staffing")],
-          ["personnel", t("nav.personnel")],
-          ["master", t("nav.master")],
-          ["useraccess", "ตั้งค่าผู้ใช้"],
-          ["changelog", "บันทึกแก้ไข"]
+          ["staffing", lang === "en" ? "Staff" : "งาน Staff"],
+          ["personnel", lang === "en" ? "Personnel" : "บุคลากร"],
+          ["accounting", lang === "en" ? "Accounting" : "งานบัญชี"],
+          ["changelog", lang === "en" ? "Changelog" : "บันทึกแก้ไข"],
+          ["useraccess", lang === "en" ? "User Controls" : "ตั้งค่าผู้ใช้"],
+          ["master", t("nav.master")]
         ] as [MainView, string][])
           .filter(([key]) => hasModuleAccess(key))
           .map(([key, label]) => (
@@ -1083,42 +1124,42 @@ if (loading) {
 
             <div className="overview-grid">
               <div className="overview-stat-card emerald">
-                <div className="overview-stat-icon">📋</div>
+                <div className="overview-stat-icon">{overviewMetricIcon("orders")}</div>
                 <div className="overview-stat-body">
                   <span>รายการวันนี้</span>
                   <strong>{orders.filter(o => o.date === orderDateStart).length}</strong>
                 </div>
               </div>
               <div className="overview-stat-card blue">
-                <div className="overview-stat-icon">👥</div>
+                <div className="overview-stat-icon">{overviewMetricIcon("pax")}</div>
                 <div className="overview-stat-body">
                   <span>Pax วันนี้ (รับ)</span>
                   <strong>{orders.filter(o => o.date === orderDateStart && o.boarding !== "NO_SHOW").reduce((s, o) => s + o.join + o.visitor, 0)}</strong>
                 </div>
               </div>
               <div className="overview-stat-card orange">
-                <div className="overview-stat-icon">⚠️</div>
+                <div className="overview-stat-icon">{overviewMetricIcon("alert")}</div>
                 <div className="overview-stat-body">
                   <span>No Show</span>
                   <strong>{orders.filter(o => o.date === orderDateStart && o.boarding === "NO_SHOW").length}</strong>
                 </div>
               </div>
               <div className="overview-stat-card amber">
-                <div className="overview-stat-icon">🚌</div>
+                <div className="overview-stat-icon">{overviewMetricIcon("transport")}</div>
                 <div className="overview-stat-body">
                   <span>ยังไม่ได้จัดรถ</span>
                   <strong>{orders.filter(o => o.date === orderDateStart && !o.driver && o.boarding !== "CANCELLED").length}</strong>
                 </div>
               </div>
               <div className="overview-stat-card purple">
-                <div className="overview-stat-icon">🧑‍💼</div>
+                <div className="overview-stat-icon">{overviewMetricIcon("staff")}</div>
                 <div className="overview-stat-body">
                   <span>รอ Staff จัด</span>
                   <strong>{orders.filter(o => o.date === orderDateStart && o.boarding !== "CANCELLED" && o.boarding !== "NO_SHOW" && o.assignedStaff.length < 2).length}</strong>
                 </div>
               </div>
               <div className="overview-stat-card red">
-                <div className="overview-stat-icon">⏰</div>
+                <div className="overview-stat-icon">{overviewMetricIcon("waiting")}</div>
                 <div className="overview-stat-body">
                   <span>ยังรอรับ (Waiting)</span>
                   <strong>{orders.filter(o => o.date === orderDateStart && o.boarding === "WAITING").length}</strong>
@@ -1234,16 +1275,16 @@ if (loading) {
                 <p>History Log</p>
               </div>
               <div className="action-group">
-<button className="primary-button" onClick={() => setShowOrderModal(true)} disabled={userRole === "STAFF" || userRole === "DRIVER"} title={userRole === "STAFF" || userRole === "DRIVER" ? "ไม่มีสิทธิ์เพิ่มรายการ" : ""} type="button">
-                  เพิ่มรายการใหม่
+<button className="primary-button order-add-button" onClick={() => setShowOrderModal(true)} disabled={!canEditOrders} title={!canEditOrders ? "ไม่มีสิทธิ์เพิ่มรายการ" : ""} type="button">
+                  + เพิ่มรายการใหม่
                 </button>
                 <div className="export-dropdown-wrap">
                   <button
-                    className="secondary-button export-trigger"
+                    className="secondary-button export-trigger export-trigger-strong"
                     onClick={() => setShowExportMenu((v) => !v)}
                     type="button"
                   >
-                    ส่งออก ▾
+                    ส่งออกไฟล์ ▾
                   </button>
                   {showExportMenu ? (
                     <div className="export-menu">
@@ -1346,6 +1387,7 @@ if (loading) {
                           isEditing={editingOrderId === order.id}
                           editForm={editForm}
                           userRole={userRole}
+                          canEdit={canEditOrders}
                           formatStatus={formatStatus}
                           statusClass={statusClass}
                           onEditFieldChange={updateEditFormField}
@@ -1367,6 +1409,12 @@ if (loading) {
       {mainView === "transport" ? (
         <section className="view-section">
           <div className="glass-card">
+            <div className="section-header section-header-lg">
+              <div>
+                <h2>{lang === "en" ? "Transport" : "งานจัดรถ"}</h2>
+                <p>{lang === "en" ? "Assign drivers, monitor pickup status, and prepare job orders." : "จัดรถ ติดตามสถานะรับ และออกใบงานคนขับในบอร์ดเดียว"}</p>
+              </div>
+            </div>
             <div className="subnav">
               {[
                 ["assign", "1. จัดรถรับลูกค้า (Assign)"],
@@ -1391,6 +1439,16 @@ if (loading) {
                 vehicles={vehicles}
                 transportDate={transportDate}
                 onSetTransportDate={setTransportDate}
+                assignSortField={assignSortField}
+                assignSortDir={assignSortDir}
+                onToggleAssignSort={(field) => {
+                  if (assignSortField === field) {
+                    setAssignSortDir((current) => current === "asc" ? "desc" : "asc");
+                  } else {
+                    setAssignSortField(field);
+                    setAssignSortDir("asc");
+                  }
+                }}
                 savingOrderId={transportSavingOrderId}
                 onChangeLocalAdminNote={updateOrderAdminNote}
                 onSaveTransport={saveTransportAssignment}
@@ -1444,6 +1502,12 @@ if (loading) {
       {mainView === "staffing" ? (
         <section className="view-section">
           <div className="glass-card">
+            <div className="section-header section-header-lg">
+              <div>
+                <h2>{lang === "en" ? "Staff" : "งาน Staff"}</h2>
+                <p>{lang === "en" ? "Set field staffing, review the work board, and track KPI in one place." : "จัดไกด์สนาม ดูบอร์ดงาน และติดตาม KPI ของทีมในหน้าเดียว"}</p>
+              </div>
+            </div>
             <div className="subnav">
               {[
                 ["setup", "1. จัดไกด์สนาม (Setup)"],
@@ -1519,6 +1583,8 @@ if (loading) {
           onEditEmployee={openEditEmployeeModal}
         />
       ) : null}
+
+      {mainView === "accounting" ? <AccountingView orders={orders} focusDate={orderDateStart} /> : null}
 
       {mainView === "master" ? (
         <MasterView

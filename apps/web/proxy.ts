@@ -1,34 +1,14 @@
-import { createHash } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
+import { getSessionFromRequest } from "./lib/auth/server-session";
 
 const SESSION_COOKIE = "zcc_session";
 const SESSION_ROLE_COOKIE = "zcc_role";
-const SESSION_SECRET = process.env.SESSION_SECRET ?? "dev-secret-change-in-production";
-
-function parseSessionToken(token: string): { userId: string; role: string; ts: number } | null {
-  try {
-    const [payload, sig] = token.split(".");
-    const sigInput = payload + SESSION_SECRET;
-    const expectedSig = createHash("sha256").update(sigInput).digest("hex").slice(0, 16);
-    if (sig !== expectedSig) return null;
-    const decoded = Buffer.from(payload, "base64url").toString("utf8");
-    const [userId, role, ts] = decoded.split(":");
-    return { userId, role, ts: parseInt(ts, 10) };
-  } catch {
-    return null;
-  }
-}
 
 const PUBLIC_PATHS = ["/login", "/api/auth", "/api/subagent"];
 
 const MODULE_ROUTE_ACCESS: Record<string, string[]> = {
   "/personnel": ["ADMIN", "MANAGER"],
 };
-
-function getRoleFromCookies(request: NextRequest): string | null {
-  const roleCookie = request.cookies.get("zcc_role")?.value;
-  return roleCookie ?? null;
-}
 
 function checkModuleAccess(pathname: string, role: string | null, requestUrl: string): NextResponse | null {
   for (const [prefix, allowed] of Object.entries(MODULE_ROUTE_ACCESS)) {
@@ -54,14 +34,7 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const token = request.cookies.get(SESSION_COOKIE)?.value;
-  if (!token) {
-    const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("from", pathname);
-    return NextResponse.redirect(loginUrl);
-  }
-
-  const session = parseSessionToken(token);
+  const session = getSessionFromRequest(request);
   if (!session) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("from", pathname);
@@ -70,18 +43,7 @@ export async function proxy(request: NextRequest) {
     response.cookies.delete(SESSION_ROLE_COOKIE);
     return response;
   }
-
-  const ageMs = Date.now() - session.ts;
-  if (ageMs > 8 * 60 * 60 * 1000) {
-    const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("from", pathname);
-    const response = NextResponse.redirect(loginUrl);
-    response.cookies.delete(SESSION_COOKIE);
-    response.cookies.delete(SESSION_ROLE_COOKIE);
-    return response;
-  }
-
-  const role = request.cookies.get(SESSION_ROLE_COOKIE)?.value ?? session.role;
+  const role = session.role;
 
   const moduleDenied = checkModuleAccess(pathname, role, request.url.toString());
   if (moduleDenied) return moduleDenied;

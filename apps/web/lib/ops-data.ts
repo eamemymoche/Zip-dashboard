@@ -96,6 +96,7 @@ export const vehiclesSeed: VehicleRecord[] = [
 export const timeSlots = ["07:00", "08:00", "09:00", "11:00", "12:00", "13:00"];
 
 const agents = ["Klook", "Trip.com", "CTrip", "TTD Global", "Direct"];
+
 const guestNames = [
   "สมปอง ศรีสุข",
   "พิมพ์ชนก อ่อนหวาน",
@@ -108,8 +109,43 @@ const guestNames = [
   "ธีรภัทร์ สายลม",
   "Rin Moss",
   "Mali Carter",
-  "Tawan Patel"
+  "Tawan Patel",
+  "จิราพร วงศ์สกุล",
+  "สุภาพร ทองธรรม",
+  "ชนันธา บุญมาก",
+  "Won Jun-ho",
+  "Sung-Hee Kang",
+  "อนุชา รัตนโชติ",
+  "Priya Mehta",
+  "Ananya Singh",
+  "Krit Jirasak",
+  "Natthida Thongchai",
+  "Somchai Jaidee",
+  "Supranee Suwan",
+  "Marco Vitti",
+  "Elena Rossi",
+  "Wei-Lin Chen",
+  "Yuki Tanaka",
+  "Lee Dae-jung",
+  "Phattaraporn Ploy",
+  "Chalit Kasemsuk",
+  "Nont Fongmoon",
+  "ภัทรานิษฐ์ ฐิติธรรม",
+  "Thomas Gruber",
+  "Anna Schmidt",
+  "ธนพล วีระชัย",
+  "Fang Xiaoming",
+  "Liu Yang",
+  "Sanjay Gupta",
+  "นริศรา เจริญผล",
+  "Siriporn Srisuk",
+  "Jakkarin Pup",
+  "Emma Thompson",
+  "Oliver Brown",
+  "นภาพร รอดสกุล",
+  "วิทวัส สุขแก้ว"
 ];
+
 const hotels = [
   "Lagoon Suites",
   "River Crest",
@@ -120,93 +156,158 @@ const hotels = [
   "Aurora View",
   "Hill Garden",
   "Monsoon Court",
-  "Beach Loft"
+  "Beach Loft",
+  "Grand Mandarina",
+  "Sky River Hotel",
+  "Baywatch Resort",
+  "The Sand Palace",
+  "Northern Heritage",
+  "Jungle Edge Lodge",
+  "Valley View Inn",
+  "Royal Garden Suite",
+  "Coastal Breeze Hotel",
+  "Mountain Crest Resort"
 ];
 
+const adminNotesByStatus: Record<BookingStatus, string[]> = {
+  WAITING: [],
+  BOARDED: [],
+  NO_SHOW: [
+    "ลูกค้ายังไม่ลงมาที่ล็อบบี้",
+    "รอลูกค้าที่ห้องพัก",
+    "โทรแล้วไม่รับ",
+    "เลื่อนไปรอบถัดไป"
+  ],
+  CANCELLED: [
+    "ยกเลิกเนื่องจากอากาศ",
+    "ลูกค้าขอยกเลิก",
+    "ไม่มีรอบว่าง"
+  ],
+  RESCHEDULED: [
+    "ขอเลื่อนไปรอบถัดไป",
+    "เปลี่ยนรอบเนื่องจากติดธุระ"
+  ]
+};
+
 function createOrderStatus(index: number): BookingStatus {
-  if (index % 17 === 0) {
-    return "NO_SHOW";
-  }
-  if (index % 13 === 0) {
-    return "RESCHEDULED";
-  }
-  if (index % 11 === 0) {
-    return "CANCELLED";
-  }
-  if (index % 5 === 0) {
-    return "WAITING";
-  }
+  if (index % 17 === 0) return "NO_SHOW";
+  if (index % 13 === 0) return "RESCHEDULED";
+  if (index % 11 === 0) return "CANCELLED";
+  if (index % 5 === 0) return "WAITING";
   return "BOARDED";
 }
 
-export function generatePrototypeOrders(): OrderRecord[] {
-  const driverNames = employeesSeed
-    .filter((employee) => employee.role === "Driver")
-    .map((employee) => employee.name);
-  const staffNames = employeesSeed
-    .filter((employee) => employee.role === "Staff")
-    .map((employee) => employee.name);
+function getDailyVolume(dayOfWeek: number, dayIndex: number): number {
+  if (dayOfWeek === 0 || dayOfWeek === 6) {
+    return dayIndex % 3 === 0 ? 35 : dayIndex % 3 === 1 ? 32 : 28;
+  }
+  if (dayOfWeek === 1 || dayOfWeek === 5) {
+    return dayIndex % 2 === 0 ? 22 : 20;
+  }
+  return dayIndex % 2 === 0 ? 18 : 19;
+}
 
-  const vehicleCodes = vehiclesSeed.map((vehicle) => vehicle.code);
+export function generateMay2026Seed(): DashboardSeed {
+  const driverNames = employeesSeed
+    .filter((e) => e.role === "Driver")
+    .map((e) => e.name);
+  const staffNames = employeesSeed
+    .filter((e) => e.role === "Staff")
+    .map((e) => e.name);
+  const vehicleCodes = vehiclesSeed.map((v) => v.code);
+
+  const startDate = new Date("2026-05-17T00:00:00+07:00");
+  const endDate = new Date("2026-05-31T00:00:00+07:00");
+  const totalDays =
+    Math.floor((endDate.getTime() - startDate.getTime()) / 86400000) + 1;
 
   const orders: OrderRecord[] = [];
-  let currentId = 1;
+  let bookingCounter = 1001300;
+  let globalIndex = 0;
 
-  for (let day = 11; day <= 15; day += 1) {
-    const formattedDate = `2026-05-${String(day).padStart(2, "0")}`;
+  for (let d = 0; d < totalDays; d += 1) {
+    const dateObj = new Date(startDate);
+    dateObj.setDate(dateObj.getDate() + d);
+    const dayOfWeek = dateObj.getDay();
+    const formattedDate = dateObj.toISOString().slice(0, 10);
 
-    for (let i = 0; i < 24; i += 1) {
-      const join = (i % 4) + 1;
-      const visitor = i % 3 === 0 ? 1 : 0;
-      const status = createOrderStatus(currentId);
-      const packet = productPacketsSeed[i % productPacketsSeed.length];
-      const driver = status === "CANCELLED" ? "" : driverNames[i % driverNames.length];
-      const vehicle = status === "CANCELLED" ? "" : vehicleCodes[i % vehicleCodes.length];
+    const volume = getDailyVolume(dayOfWeek, d);
+
+    for (let i = 0; i < volume; i += 1) {
+      const idx = globalIndex;
+      globalIndex += 1;
+
+      const status = createOrderStatus(idx);
+      const packet = productPacketsSeed[idx % productPacketsSeed.length];
+      const slotIdx = idx % timeSlots.length;
+      const agentIdx = (idx + d) % agents.length;
+      const guestIdx = (idx + d * 3) % guestNames.length;
+      const hotelIdx = (idx + d * 7) % hotels.length;
+      const driverIdx = idx % driverNames.length;
+      const staffIdx = idx % staffNames.length;
+      const vehicleIdx = idx % vehicleCodes.length;
+
+      const join = (idx % 4) + 1;
+      const visitor = idx % 3 === 0 ? 1 : 0;
+
+      const adminNotePool = adminNotesByStatus[status];
+      const adminNote =
+        adminNotePool.length > 0
+          ? adminNotePool[idx % adminNotePool.length]
+          : "";
+
+      const isAssigned =
+        status !== "CANCELLED" && status !== "RESCHEDULED" && idx % 7 !== 4;
+      const driver = isAssigned ? driverNames[driverIdx] : "";
+      const driverCode = isAssigned
+        ? employeesSeed.find((e) => e.name === driver)?.id ?? ""
+        : "";
+      const vehicle = isAssigned ? vehicleCodes[vehicleIdx] : "";
+      const vehicleCode = vehicle;
+
       const assignedStaff =
-        status === "NO_SHOW"
+        status === "NO_SHOW" || status === "CANCELLED" || !isAssigned
           ? []
-          : [staffNames[i % staffNames.length], staffNames[(i + 1) % staffNames.length]];
+          : [
+              staffNames[staffIdx],
+              staffNames[(staffIdx + 1) % staffNames.length]
+            ];
 
       orders.push({
-        id: currentId,
+        id: idx + 1,
         date: formattedDate,
-        time: timeSlots[i % timeSlots.length],
-        agent: agents[(day + i) % agents.length],
-        booking: `BK${1000000 + currentId}`,
+        time: timeSlots[slotIdx],
+        agent: agents[agentIdx],
+        booking: `BK${bookingCounter}`,
         packet: packet.name,
-        name: guestNames[(day + i) % guestNames.length],
-        phone: `08${String(10000000 + currentId).slice(0, 8)}`,
-        hotel: hotels[(day + i) % hotels.length],
-        room: `${100 + i}`,
+        name: guestNames[guestIdx],
+        phone: `08${String(10000000 + idx).slice(0, 9)}`,
+        hotel: hotels[hotelIdx],
+        room: `${(idx % 900) + 100}`,
         join,
         visitor,
         driver,
-        driverCode: status === "CANCELLED" ? "" : employeesSeed.filter((employee) => employee.role === "Driver")[i % driverNames.length]?.id ?? "",
+        driverCode,
         vehicle,
-        vehicleCode: vehicle,
+        vehicleCode,
         boarding: status,
         assignedStaff,
-        adminNote:
-          status === "NO_SHOW"
-            ? "ลูกค้ายังไม่ลงมาที่ล็อบบี้"
-            : status === "RESCHEDULED"
-              ? "ขอเลื่อนไปรอบถัดไป"
-              : ""
+        adminNote
       });
 
-      currentId += 1;
+      bookingCounter += 1;
     }
   }
 
-  return orders;
-}
-
-export function createDashboardSeed(): DashboardSeed {
   return {
-    orders: generatePrototypeOrders(),
+    orders,
     employees: employeesSeed,
     vehicles: vehiclesSeed,
     productPackets: productPacketsSeed,
     timeSlots
   };
+}
+
+export function createDashboardSeed(): DashboardSeed {
+  return generateMay2026Seed();
 }

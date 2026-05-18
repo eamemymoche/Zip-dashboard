@@ -1,47 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "crypto";
 import { createPrismaClient } from "../../../lib/prisma";
-import { ALLOWED_ROLES_USER_ACCESS, ALL_BOARD_KEYS, defaultBoardAccessForRole, normalizeBoardAccess, type BoardKey, type UserRole } from "../../../lib/auth/role-guards";
+import { ALLOWED_ROLES_USER_ACCESS, defaultModuleAccessForRole, normalizeModuleAccess, type ModuleAccessMap, type UserRole } from "../../../lib/auth/role-guards";
+import { getRoleFromRequest, roleGuard } from "../../../lib/auth/server-session";
 
 async function getPrisma() {
   return createPrismaClient();
 }
 
-function getRole(request: NextRequest): string | null {
-  return request.headers.get("x-user-role") ?? request.cookies.get("zcc_role")?.value ?? null;
-}
-
-function roleGuard(role: string | null, allowed: string[]): NextResponse | null {
-  if (!role || !allowed.includes(role)) {
-    return new NextResponse(JSON.stringify({ error: "Insufficient permissions" }), {
-      status: 403,
-      headers: { "Content-Type": "application/json" }
-    });
-  }
-  return null;
-}
-
 function isUserSchemaMismatch(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error ?? "");
-  return message.includes("User.active") || message.includes("column") && message.includes("does not exist");
+  return message.includes("User.active") || message.includes("User.username") || (message.includes("column") && message.includes("does not exist"));
 }
 
 const DEMO_USERS_FALLBACK = [
-  { id: "demo-superadmin-001", email: "superadmin@zipline.com", displayName: "SuperAdmin Dev", role: "SUPERADMIN", active: true, moduleAccess: ALL_BOARD_KEYS, createdAt: new Date("2026-05-17T00:00:00.000Z").toISOString() },
-  { id: "demo-admin-001", email: "owner@zipline.com", displayName: "Owner Dev", role: "ADMIN", active: true, moduleAccess: defaultBoardAccessForRole("ADMIN"), createdAt: new Date("2026-05-17T00:00:00.000Z").toISOString() },
-  { id: "demo-officer-001", email: "officer@zipline.com", displayName: "Officer Dev", role: "MANAGER", active: true, moduleAccess: defaultBoardAccessForRole("MANAGER"), createdAt: new Date("2026-05-17T00:00:00.000Z").toISOString() },
-  { id: "demo-account-001", email: "accounting@zipline.com", displayName: "Account Dev", role: "ACCOUNTING", active: true, moduleAccess: defaultBoardAccessForRole("ACCOUNTING"), createdAt: new Date("2026-05-17T00:00:00.000Z").toISOString() },
-  { id: "demo-staff-001", email: "staff@zipline.com", displayName: "Staff Dev", role: "STAFF", active: true, moduleAccess: defaultBoardAccessForRole("STAFF"), createdAt: new Date("2026-05-17T00:00:00.000Z").toISOString() },
-  { id: "demo-driver-001", email: "driver@zipline.com", displayName: "Driver Dev", role: "DRIVER", active: true, moduleAccess: defaultBoardAccessForRole("DRIVER"), createdAt: new Date("2026-05-17T00:00:00.000Z").toISOString() }
+  { id: "demo-superadmin-001", username: "superadmin", email: "superadmin@demo.local", displayName: "SuperAdmin Dev", role: "SUPERADMIN", active: true, moduleAccess: defaultModuleAccessForRole("SUPERADMIN"), createdAt: new Date("2026-05-17T00:00:00.000Z").toISOString() },
+  { id: "demo-manager-001", username: "manager", email: "manager@demo.local", displayName: "Manager Dev", role: "MANAGER", active: true, moduleAccess: { ...defaultModuleAccessForRole("SUPERADMIN"), useraccess: undefined }, createdAt: new Date("2026-05-17T00:00:00.000Z").toISOString() },
+  { id: "demo-officer-001", username: "officer", email: "officer@demo.local", displayName: "Officer Dev", role: "MANAGER", active: true, moduleAccess: defaultModuleAccessForRole("MANAGER"), createdAt: new Date("2026-05-17T00:00:00.000Z").toISOString() },
+  { id: "demo-account-001", username: "account", email: "account@demo.local", displayName: "Account Dev", role: "ACCOUNTING", active: true, moduleAccess: defaultModuleAccessForRole("ACCOUNTING"), createdAt: new Date("2026-05-17T00:00:00.000Z").toISOString() },
+  { id: "demo-staff-001", username: "staff", email: "staff@demo.local", displayName: "Staff Dev", role: "STAFF", active: true, moduleAccess: defaultModuleAccessForRole("STAFF"), createdAt: new Date("2026-05-17T00:00:00.000Z").toISOString() },
+  { id: "demo-driver-001", username: "driver", email: "driver@demo.local", displayName: "Driver Dev", role: "DRIVER", active: true, moduleAccess: defaultModuleAccessForRole("DRIVER"), createdAt: new Date("2026-05-17T00:00:00.000Z").toISOString() }
 ];
 
-function parseModuleAccess(raw: string | null | undefined, role: UserRole): BoardKey[] {
-  if (!raw) return defaultBoardAccessForRole(role);
+function parseModuleAccess(raw: string | null | undefined, role: UserRole): ModuleAccessMap {
+  if (!raw) return defaultModuleAccessForRole(role);
   try {
-    const parsed = JSON.parse(raw) as unknown;
-    return normalizeBoardAccess(parsed, role);
+    return normalizeModuleAccess(JSON.parse(raw), role);
   } catch {
-    return defaultBoardAccessForRole(role);
+    return defaultModuleAccessForRole(role);
   }
 }
 
@@ -51,8 +37,22 @@ function canAssignRole(actorRole: string | null, nextRole: string | undefined): 
   return actorRole === "SUPERADMIN";
 }
 
+function canDeleteUser(actorRole: string | null): boolean {
+  return actorRole === "SUPERADMIN";
+}
+
+function normalizeUsername(value: unknown): string {
+  if (typeof value !== "string") return "";
+  return value.trim().toLowerCase();
+}
+
+function isValidUsername(username: string): boolean {
+  if (!username || username.length < 3 || username.length > 32) return false;
+  return /^[a-z0-9._-]+$/.test(username);
+}
+
 export async function GET(request: NextRequest) {
-  const role = getRole(request);
+  const role = getRoleFromRequest(request);
   const denied = roleGuard(role, ALLOWED_ROLES_USER_ACCESS);
   if (denied) return denied;
 
@@ -62,6 +62,7 @@ export async function GET(request: NextRequest) {
     const users = await prisma.user.findMany({
       select: {
         id: true,
+        username: true,
         email: true,
         displayName: true,
         role: true,
@@ -73,6 +74,7 @@ export async function GET(request: NextRequest) {
     });
     return NextResponse.json(users.map((user) => ({
       id: user.id,
+      username: user.username,
       email: user.email,
       displayName: user.displayName,
       role: user.role,
@@ -81,10 +83,7 @@ export async function GET(request: NextRequest) {
       createdAt: user.createdAt
     })));
   } catch (error) {
-    if (!prisma) {
-      return NextResponse.json(DEMO_USERS_FALLBACK, { status: 200 });
-    }
-    if (isUserSchemaMismatch(error)) {
+    if (!prisma || isUserSchemaMismatch(error)) {
       return NextResponse.json(DEMO_USERS_FALLBACK, { status: 200 });
     }
     return NextResponse.json({ error: "Failed to fetch users" }, { status: 500 });
@@ -96,15 +95,26 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const role = getRole(request);
+  const role = getRoleFromRequest(request);
   const denied = roleGuard(role, ALLOWED_ROLES_USER_ACCESS);
   if (denied) return denied;
+  if (!canDeleteUser(role)) {
+    return NextResponse.json({ error: "Only SUPERADMIN can create users" }, { status: 403 });
+  }
 
   const body = await request.json();
-  const { email, displayName, role: userRole, password, moduleAccess } = body;
+  const username = normalizeUsername(body.username);
+  const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+  const displayName = typeof body.displayName === "string" ? body.displayName.trim() : "";
+  const userRole = body.role;
+  const password = typeof body.password === "string" ? body.password : "";
+  const moduleAccess = body.moduleAccess;
 
-  if (!email || !displayName || !userRole || !password) {
-    return NextResponse.json({ error: "email, displayName, role, and password are required" }, { status: 400 });
+  if (!username || !email || !displayName || !userRole || !password) {
+    return NextResponse.json({ error: "username, email, displayName, role, and password are required" }, { status: 400 });
+  }
+  if (!isValidUsername(username)) {
+    return NextResponse.json({ error: "Username must be 3-32 chars using a-z, 0-9, dot, underscore, or dash" }, { status: 400 });
   }
   if (!canAssignRole(role, userRole)) {
     return NextResponse.json({ error: "Only SUPERADMIN can assign SUPERADMIN role" }, { status: 403 });
@@ -113,25 +123,26 @@ export async function POST(request: NextRequest) {
   let prisma: Awaited<ReturnType<typeof getPrisma>> | null = null;
   try {
     prisma = await getPrisma();
-    const existing = await prisma.user.findUnique({ where: { email } });
-    if (existing) {
-      return NextResponse.json({ error: "User with this email already exists" }, { status: 409 });
+    const existingUser = await prisma.user.findFirst({ where: { OR: [{ username }, { email }] } });
+    if (existingUser) {
+      return NextResponse.json({ error: "Username or email already exists" }, { status: 409 });
     }
 
-    const SESSION_SECRET = process.env.SESSION_SECRET ?? "dev-secret-change-in-production";
-    const passwordHash = createHash("sha256").update(password + SESSION_SECRET).digest("hex");
+    const passwordHash = createHash("sha256").update(password + (process.env.SESSION_SECRET ?? "dev-secret-change-in-production")).digest("hex");
 
     const user = await prisma.user.create({
       data: {
+        username,
         email,
         displayName,
         role: userRole as UserRole,
         passwordHash,
         active: true,
-        moduleAccessJson: JSON.stringify(normalizeBoardAccess(moduleAccess, userRole as UserRole))
+        moduleAccessJson: JSON.stringify(normalizeModuleAccess(moduleAccess, userRole as UserRole))
       },
       select: {
         id: true,
+        username: true,
         email: true,
         displayName: true,
         role: true,
@@ -140,8 +151,19 @@ export async function POST(request: NextRequest) {
         createdAt: true
       }
     });
+
+    await prisma.auditLog.create({
+      data: {
+        entityType: "User",
+        entityId: user.id,
+        action: "user.created",
+        afterJson: JSON.stringify({ username: user.username, email: user.email, role: user.role })
+      }
+    });
+
     return NextResponse.json({
       id: user.id,
+      username: user.username,
       email: user.email,
       displayName: user.displayName,
       role: user.role,
@@ -150,10 +172,7 @@ export async function POST(request: NextRequest) {
       createdAt: user.createdAt
     }, { status: 201 });
   } catch (error) {
-    if (!prisma) {
-      return NextResponse.json({ error: "Database unavailable" }, { status: 503 });
-    }
-    if (isUserSchemaMismatch(error)) {
+    if (!prisma || isUserSchemaMismatch(error)) {
       return NextResponse.json({ error: "User schema is outdated. Apply latest migrations." }, { status: 503 });
     }
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
@@ -165,7 +184,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
-  const role = getRole(request);
+  const role = getRoleFromRequest(request);
   const denied = roleGuard(role, ALLOWED_ROLES_USER_ACCESS);
   if (denied) return denied;
 
@@ -184,7 +203,7 @@ export async function PUT(request: NextRequest) {
     prisma = await getPrisma();
     const user = await prisma.user.findUnique({
       where: { id },
-      select: { id: true, role: true, active: true, moduleAccessJson: true }
+      select: { id: true, username: true, role: true, active: true, moduleAccessJson: true }
     });
     if (!user) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
@@ -195,7 +214,7 @@ export async function PUT(request: NextRequest) {
     if (active !== undefined) updateData.active = active;
     if (moduleAccess !== undefined) {
       const roleForAccess = (userRole ?? user.role) as UserRole;
-      updateData.moduleAccessJson = JSON.stringify(normalizeBoardAccess(moduleAccess, roleForAccess));
+      updateData.moduleAccessJson = JSON.stringify(normalizeModuleAccess(moduleAccess, roleForAccess));
     }
 
     const updated = await prisma.user.update({
@@ -203,6 +222,7 @@ export async function PUT(request: NextRequest) {
       data: updateData,
       select: {
         id: true,
+        username: true,
         email: true,
         displayName: true,
         role: true,
@@ -217,13 +237,14 @@ export async function PUT(request: NextRequest) {
         entityType: "User",
         entityId: id,
         action: "user.updated",
-        beforeJson: JSON.stringify({ role: user.role, active: user.active, moduleAccessJson: user.moduleAccessJson }),
-        afterJson: JSON.stringify({ role: updated.role, active: updated.active, moduleAccessJson: updated.moduleAccessJson })
+        beforeJson: JSON.stringify({ username: user.username, role: user.role, active: user.active, moduleAccessJson: user.moduleAccessJson }),
+        afterJson: JSON.stringify({ username: updated.username, role: updated.role, active: updated.active, moduleAccessJson: updated.moduleAccessJson })
       }
     });
 
     return NextResponse.json({
       id: updated.id,
+      username: updated.username,
       email: updated.email,
       displayName: updated.displayName,
       role: updated.role,
@@ -232,10 +253,54 @@ export async function PUT(request: NextRequest) {
       createdAt: updated.createdAt
     });
   } catch (error) {
-    if (!prisma) {
-      return NextResponse.json({ error: "Database unavailable" }, { status: 503 });
+    if (!prisma || isUserSchemaMismatch(error)) {
+      return NextResponse.json({ error: "User schema is outdated. Apply latest migrations." }, { status: 503 });
     }
-    if (isUserSchemaMismatch(error)) {
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  } finally {
+    if (prisma) {
+      await prisma.$disconnect();
+    }
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  const role = getRoleFromRequest(request);
+  const denied = roleGuard(role, ALLOWED_ROLES_USER_ACCESS);
+  if (denied) return denied;
+  if (!canDeleteUser(role)) {
+    return NextResponse.json({ error: "Only SUPERADMIN can delete users" }, { status: 403 });
+  }
+
+  const { searchParams } = new URL(request.url);
+  const id = searchParams.get("id");
+  if (!id) {
+    return NextResponse.json({ error: "user id is required" }, { status: 400 });
+  }
+
+  let prisma: Awaited<ReturnType<typeof getPrisma>> | null = null;
+  try {
+    prisma = await getPrisma();
+    const existing = await prisma.user.findUnique({
+      where: { id },
+      select: { id: true, username: true, email: true, role: true }
+    });
+    if (!existing) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    await prisma.user.delete({ where: { id } });
+    await prisma.auditLog.create({
+      data: {
+        entityType: "User",
+        entityId: id,
+        action: "user.deleted",
+        beforeJson: JSON.stringify({ username: existing.username, email: existing.email, role: existing.role })
+      }
+    });
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    if (!prisma || isUserSchemaMismatch(error)) {
       return NextResponse.json({ error: "User schema is outdated. Apply latest migrations." }, { status: 503 });
     }
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

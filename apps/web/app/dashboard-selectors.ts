@@ -181,7 +181,10 @@ export function buildSelectedDriverOrders(
   selectedSheetSlot: string
 ) {
   return orders.filter(
-    (order) => order.date === transportDate && order.driver === selectedDriver && order.time === selectedSheetSlot
+    (order) =>
+      order.date === transportDate &&
+      order.driver === selectedDriver &&
+      (selectedSheetSlot === "ALL" || order.time === selectedSheetSlot)
   );
 }
 

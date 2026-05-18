@@ -1,42 +1,31 @@
 # Project Brief
 
-## One-Line Goal
+Zipline Command Center is an internal operations dashboard for handling:
 
-Build a production-grade Zipline Command Center for managing bookings, pickup transport, field staffing, job sheets, personnel, packages, KPIs, and operational reports.
+- order intake and edits
+- transport assignment and pickup tracking
+- staff setup and KPI review
+- personnel records
+- accounting summary
+- user permission management
+- audit/changelog visibility
 
-## Problem
+Working model:
 
-The existing prototype is a single HTML/JavaScript page with mock data generated in the browser. It has useful screens and workflows, but it does not persist data, connect to APIs, enforce user roles, or support real operations at scale.
+- frontend-first dashboard UX
+- PostgreSQL + Prisma for persistent operations
+- username-based login with role/module access control
+- local demo mode still supported through seeded users
 
-## Target Users
+Current implementation goal:
 
-- Operations admins who create and manage bookings.
-- Transport coordinators who assign drivers and monitor pickup status.
-- Drivers who need clear printable job sheets.
-- Field staff/guides who need assignment boards.
-- Managers who track workload, KPIs, agents, packages, and reports.
+- make the system usable for day-to-day internal ops
+- keep demo data realistic enough for UI review and agent work
+- harden auth and mutation flows enough for baseline multi-user safety
 
-## Primary Workflow
+Non-goals for the current stage:
 
-1. Admin creates or imports a booking.
-2. Transport team assigns a driver by date and pickup round.
-3. Driver pickup status is rechecked as Waiting, Boarded, or No Show.
-4. No Show customers can be moved to later rounds.
-5. Field staff are assigned to active guests.
-6. Managers review master logs, pivot analysis, KPI views, and exports.
-
-## Success Criteria
-
-- [ ] Bookings persist in a real database.
-- [ ] Transport assignments persist and can be filtered by date, round, and driver.
-- [ ] Pickup status updates are saved and auditable.
-- [ ] Job sheets are printable in A4 format.
-- [ ] Personnel and package master data can be maintained.
-- [ ] Project can be built locally from documented commands.
-- [ ] First milestone is small enough to implement and test.
-
-## Non-Goals
-
-- Do not treat the current mock data as production data.
-- Do not ship browser-only state as the final system.
-- Do not build advanced realtime infrastructure until the basic persisted workflow is stable.
+- public-facing release
+- final accounting workflow
+- advanced reporting/export automation
+- production-grade WAF / infra-level DDoS controls

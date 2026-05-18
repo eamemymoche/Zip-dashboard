@@ -23,6 +23,7 @@ type OrderDetailRowProps = {
   isEditing: boolean;
   editForm: OrderEditForm | null;
   userRole: string | null;
+  canEdit: boolean;
   formatStatus: (status: string) => string;
   statusClass: (status: string) => string;
   onEditFieldChange: (field: OrderEditField, value: string) => void;
@@ -37,6 +38,7 @@ export default function OrderDetailRow({
   isEditing,
   editForm,
   userRole,
+  canEdit,
   formatStatus,
   statusClass,
   onEditFieldChange,
@@ -45,7 +47,7 @@ export default function OrderDetailRow({
   onStartEdit,
   onDelete
 }: OrderDetailRowProps) {
-  const isRestricted = userRole === "STAFF" || userRole === "DRIVER";
+  const isRestricted = !canEdit || userRole === "STAFF" || userRole === "DRIVER";
 
   return (
     <tr className="order-detail-row">
