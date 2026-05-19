@@ -2,6 +2,10 @@
 
 Internal operations dashboard for booking intake, transport assignment, staffing, personnel, user access, accounting, and backup/status workflows.
 
+## Demo
+
+- [Vercel Demo](https://zip-dashboard-web-eight.vercel.app/)
+
 ## Status
 
 - Current phase: internal alpha with active local PostgreSQL support and fallback/demo paths for local development
@@ -13,10 +17,6 @@ Internal operations dashboard for booking intake, transport assignment, staffing
   - `npm run verify:task27`
   - `npm run verify:frontend:access`
   - `npm run verify:milestoneC`
-
-## Demo
-
-- [Vercel Demo](https://zip-dashboard-web-eight.vercel.app/)
 
 ## Tech Stack
 
