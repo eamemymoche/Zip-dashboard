@@ -6,6 +6,7 @@ Internal operations dashboard for booking intake, transport assignment, staffing
 
 - Current phase: internal alpha with active local PostgreSQL support and fallback/demo paths for local development
 - Deployment target: Vercel for the `apps/web` Next.js app
+- Demo: [Vercel](https://zip-dashboard-web-eight.vercel.app/)
 - Verified on `2026-05-19`:
   - `npm run build`
   - `npm run verify:task24`
