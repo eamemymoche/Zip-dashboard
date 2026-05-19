@@ -35,7 +35,7 @@ export const ALL_ROLES: UserRole[] = ["SUPERADMIN", "ADMIN", "ACCOUNTING", "MANA
 
 export const ROLE_LABELS: Record<UserRole, string> = {
   SUPERADMIN: "Super Admin",
-  ADMIN: "Admin",
+  ADMIN: "Officer",
   ACCOUNTING: "Account",
   MANAGER: "Manager",
   STAFF: "Staff",

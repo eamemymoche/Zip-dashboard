@@ -1,7 +1,7 @@
 # AI Agent Operating Manual
 
 Status: Active  
-Last updated: 2026-05-18  
+Last updated: 2026-05-19  
 Scope: Zipline Command Center operating handbook for future AI agents
 
 ## Purpose
@@ -65,10 +65,14 @@ Important current technical facts:
 
 - `apps/web/lib/load-dashboard-data.ts` can read from Prisma when `DATABASE_URL` is available.
 - when no working DB connection is present, the dashboard falls back to seed-like dashboard data.
-- many dashboard interactions still update local client state and are not yet persisted end to end.
+- many dashboard interactions still use local orchestration state even when a DB/API write path exists.
 - the large operational surface still lives in `apps/web/app/operations-dashboard.tsx`, so future refactors must be careful and incremental.
 - auth/security helpers live in `apps/web/lib/auth/server-session.ts`; new write APIs should use `requireRole()` and `auditData()`.
 - signed `zcc_session` is the only role authority; do not reintroduce `zcc_role` as a security source.
+- employee/user identity sync now has shared logic in `apps/web/lib/auth/employee-account-sync.ts`.
+- Personnel and User Access are now connected systems; staff/driver user accounts are derived from employee identity data and reconciled through explicit sync paths.
+- repo verification scripts now assume username-first auth; if auth/session rules move again, update the smoke scripts in the same pass.
+- multilingual Thai demo data exists in active seed/fallback layers; bulk text repair should use UTF-8 project sources, not terminal-inlined literals.
 - backup dashboard design lives in `[[Backup Dashboard and Plugin Recovery Design]]`; current UI is a control surface, not real restore execution yet.
 
 ## What Future Agents Must Preserve
@@ -102,6 +106,7 @@ Future agents must preserve the following truths while evolving the codebase:
 - [[Backup Dashboard and Plugin Recovery Design]]
 - [[Roles and Permissions]]
 - [[Security and Multi-User Guardrails]]
+- [[Current Code Structure Map]]
 - [[Durable Improvements and Premium Roadmap]]
 - [[Module Ownership and Split Guide]]
 - [[Agent Command Template]]
@@ -115,11 +120,12 @@ Future agents must preserve the following truths while evolving the codebase:
 When making real implementation changes, use this order unless the user explicitly redirects:
 
 1. read this note
-2. read [[Real Workflow Model]]
-3. read the relevant domain note for the current task
-4. inspect the current code path before editing
-5. make the smallest safe change that respects the documented model
-6. update Obsidian after the change
+2. read [[Current Code Structure Map]]
+3. read [[Real Workflow Model]]
+4. read the relevant domain note for the current task
+5. inspect the current code path before editing
+6. make the smallest safe change that respects the documented model
+7. update Obsidian after the change
 
 ## Success Test
 

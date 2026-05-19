@@ -33,10 +33,44 @@ export default function StaffingSetupTable({
 }: Props) {
   const isEn = lang === "en";
   const packetsInDay = [...new Set(staffingOrders.map((order) => order.packet))];
+  const [guideSlotCounts, setGuideSlotCounts] = React.useState<Record<number, number>>({});
+
+  function getSlotCount(order: OrderRecord) {
+    return Math.max(2, guideSlotCounts[order.id] ?? order.assignedStaff.length);
+  }
+
+  function visibleGuides(order: OrderRecord) {
+    return Array.from({ length: getSlotCount(order) }, (_, index) => order.assignedStaff[index] ?? "");
+  }
+
+  function updateSlot(order: OrderRecord, slotIndex: number, staffName: string) {
+    const next = [...order.assignedStaff];
+    if (staffName) {
+      next[slotIndex] = staffName;
+    } else {
+      next.splice(slotIndex, 1);
+    }
+    const compacted = next.filter(Boolean);
+    updateOrder(order.id, (o) => ({ ...o, assignedStaff: compacted }));
+    saveStaffAssignment(order.id, compacted);
+  }
+
+  function addGuideSlot(order: OrderRecord) {
+    setGuideSlotCounts((current) => ({ ...current, [order.id]: getSlotCount(order) + 1 }));
+  }
+
+  function removeGuideSlot(order: OrderRecord, slotIndex: number) {
+    const nextVisible = visibleGuides(order).filter((_, index) => index !== slotIndex);
+    const nextCount = Math.max(2, nextVisible.length);
+    const next = nextVisible.filter(Boolean);
+    setGuideSlotCounts((current) => ({ ...current, [order.id]: nextCount }));
+    updateOrder(order.id, (o) => ({ ...o, assignedStaff: next }));
+    saveStaffAssignment(order.id, next);
+  }
 
   return (
     <>
-      <div className="toolbar warning">
+      <div className="toolbar warning staff-assign-toolbar">
         <DatePicker
           value={staffDate}
           onChange={onStaffDateChange}
@@ -59,7 +93,7 @@ export default function StaffingSetupTable({
           ))}
         </select>
       </div>
-      <div className="table-wrap">
+      <div className="table-wrap staff-assign-table-wrap">
         <table className="ops-table compact">
           <thead className="thead-orange">
             <tr>
@@ -67,7 +101,7 @@ export default function StaffingSetupTable({
               <th>Packet / Booking</th>
               <th>{isEn ? "Customer" : "ลูกค้า"}</th>
               <th className="center">{isEn ? "Join" : "Join (คนเล่น)"}</th>
-              <th>{isEn ? "Select Guides (>= 2)" : "เลือกไกด์ (&gt;= 2 คน)"}</th>
+              <th>{isEn ? "Assign Guides" : "เลือกไกด์ (Assign)"}</th>
               <th className="center">Status</th>
             </tr>
           </thead>
@@ -82,27 +116,37 @@ export default function StaffingSetupTable({
                 <td className="strong">{order.name}</td>
                 <td className="center strong-green">{order.join}</td>
                 <td>
-                  <div className="checkbox-grid">
-                    {staffMembers.map((staff) => {
-                      const checked = order.assignedStaff.includes(staff.name);
-                      return (
-                        <label className="check-pill" key={`${order.id}-${staff.id}`}>
-                          <input
-                            checked={checked}
-                            disabled={order.boarding === "NO_SHOW"}
-                            onChange={() => {
-                              const next = checked
-                                ? order.assignedStaff.filter((name) => name !== staff.name)
-                                : [...order.assignedStaff, staff.name];
-                              updateOrder(order.id, (o) => ({ ...o, assignedStaff: next }));
-                              saveStaffAssignment(order.id, next);
-                            }}
-                            type="checkbox"
-                          />
-                          <span>{staff.name.split(" ")[0]}</span>
-                        </label>
-                      );
-                    })}
+                  <div className="guide-table-card">
+                    <table className="guide-inline-table">
+                      <tbody>
+                        {visibleGuides(order).map((value, index) => (
+                          <tr key={`${order.id}-guide-${index}`}>
+                            <td className="guide-inline-label">{isEn ? `Guide ${index + 1}` : `ไกด์ ${index + 1}`}</td>
+                            <td>
+                              <select disabled={order.boarding === "NO_SHOW"} value={value} onChange={(event) => updateSlot(order, index, event.target.value)}>
+                                <option value="">{isEn ? "Select staff" : "เลือกพนักงาน"}</option>
+                                {staffMembers.map((staff) => (
+                                  <option key={staff.id} value={staff.name}>{staff.name}</option>
+                                ))}
+                              </select>
+                            </td>
+                            <td className="guide-inline-action">
+                              {index >= 2 ? (
+                                <button className="guide-remove-button" disabled={order.boarding === "NO_SHOW"} type="button" onClick={() => removeGuideSlot(order, index)} aria-label="Remove guide">×</button>
+                              ) : null}
+                            </td>
+                          </tr>
+                        ))}
+                        <tr>
+                          <td colSpan={3}>
+                            <button className="guide-add-button" disabled={order.boarding === "NO_SHOW"} type="button" onClick={() => addGuideSlot(order)}>
+                              <span>+</span>
+                              <small>{isEn ? "Add guide" : "เพิ่มไกด์"}</small>
+                            </button>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
                   </div>
                 </td>
                 <td className="center">

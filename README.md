@@ -1,201 +1,83 @@
 # Zipline Command Center
 
-Internal operations dashboard for Zipline booking intake, transport assignment, staffing, driver sheets, and master-data workflows.
+Internal operations dashboard for booking intake, transport assignment, staffing, personnel, user access, accounting, and backup/status workflows.
 
-## Live demo
+## Status
 
-- [Vercel demo](https://zip-dashboard-web-eight.vercel.app/)
+- Current phase: internal alpha with active local PostgreSQL support and fallback/demo paths for local development
+- Deployment target: Vercel for the `apps/web` Next.js app
+- Verified on `2026-05-19`:
+  - `npm run build`
+  - `npm run verify:task24`
+  - `npm run verify:task26`
+  - `npm run verify:task27`
+  - `npm run verify:frontend:access`
+  - `npm run verify:milestoneC`
 
-## Current phase
+## Tech Stack
 
-This repo is in a solid internal-alpha phase.
+- Next.js 16
+- React
+- Prisma
+- PostgreSQL
+- Playwright
+- Obsidian vault in `Zip/` for project memory and agent handoff
 
-What is already in place:
+## Project Layout
 
-- Next.js dashboard under `apps/web`
-- Prisma/PostgreSQL schema under `packages/db/prisma`
-- fallback dashboard seed mode when `DATABASE_URL` is unavailable
-- session login with local dev fallback accounts
-- server-side write guards for Order CRUD, transport assignment, pickup status, and staffing assignment
-- optimistic concurrency guards on key write paths
-- Obsidian project vault under `Zip/` for workflow, decisions, and agent guidance
-
-What is not yet fully complete:
-
-- Prisma migrations have been created but not yet applied to a real PostgreSQL database in this workspace
-- end-to-end live DB verification has not yet been completed
-- route/module permissions are intentionally lightweight and may be refined later if the business needs them
-
-## Project structure
-
-- `apps/web` - Next.js application
+- `apps/web` - main app, UI, API routes, auth, and dashboard modules
 - `packages/db` - Prisma schema, migrations, and seed script
-- `Zip` - Obsidian vault for planning, workflow notes, task tracking, and AI-agent operating docs
+- `scripts` - smoke checks and verification helpers
+- `Zip` - Obsidian notes, status tracking, and agent operating docs
 
-## Local development
+## Quick Start
 
 ```powershell
 npm install
 npm run dev
 ```
 
-Smoke verification (Task 24 flow, reusable):
+Local app:
+
+- [http://127.0.0.1:3000](http://127.0.0.1:3000)
+
+Demo login:
+
+- `superadmin / super123`
+- `officer / zipline123`
+- `account / accounting123`
+- `staff / staff123`
+- `driver / driver123`
+
+## Database
+
+Required for DB-backed flows:
+
+- `DATABASE_URL`
+- `SESSION_SECRET`
+
+Useful commands:
 
 ```powershell
-npm run verify:task24
-```
-
-Guardrail verification (Task 26 - 403/409 checks):
-
-```powershell
-npm run verify:task26
-```
-
-UI verification (Task 27 - Personnel + Master click flow):
-
-```powershell
-npm run verify:task27
-```
-
-Audit helper verification (Task 29):
-
-```powershell
-npm run verify:task29
-```
-
-Audit trace by booking number:
-
-```powershell
-npm run audit:booking -- BK12345
-```
-
-Milestone A product lifecycle verification:
-
-```powershell
-npm run verify:milestoneA
-```
-
-Milestone B fallback policy verification:
-
-```powershell
-npm run verify:milestoneB
-```
-
-Milestone C integrated end-to-end verification:
-
-```powershell
-npm run verify:milestoneC
-```
-
-Optional base URL override:
-
-```powershell
-$env:ZIPLINE_BASE_URL = "http://127.0.0.1:3000"
-npm run verify:task24
-```
-
-Default local URL:
-
-- `http://127.0.0.1:3000/`
-
-## Local login fallback
-
-When no working PostgreSQL-backed auth is available, these local dev accounts can be used:
-
-- `officer@zipline.com` / `zipline123`
-- `owner@zipline.com` / `owner123`
-- `accounting@zipline.com` / `accounting123`
-
-This fallback is for local development only. It is not production auth.
-
-## Database commands
-
-```powershell
-# Generate Prisma client from schema (run after any schema change)
 npm run db:generate
-
-# Seed the database with initial data (requires live PostgreSQL and DATABASE_URL set)
 npm run db:seed
 ```
 
-**Prerequisites for all DB commands:**
-- `DATABASE_URL` must be set — commands fail fast without it (no silent localhost fallback)
-- `SESSION_SECRET` must match the value used by the auth API; production rejects missing/default/short values
-- Copy `.env.example` → `.env.local` and fill in your values before running DB commands
+If `DATABASE_URL` is unavailable, the dashboard can still run in fallback/demo mode for local work.
 
-**Optional PostgreSQL web-app tuning:**
-- `DATABASE_POOL_MAX` controls the max per-process PostgreSQL pool size (default `10`)
-- `DATABASE_POOL_IDLE_TIMEOUT_MS`, `DATABASE_POOL_CONNECTION_TIMEOUT_MS`, and `DATABASE_STATEMENT_TIMEOUT_MS` can be raised for slow networks or lowered to fail fast under load
+## Verification
 
-**Fail-fast behavior:**
-- `prisma.config.ts` now throws a clear error if `DATABASE_URL` is missing
-- The app itself still runs in fallback mode without PostgreSQL (dashboard loads from seed data)
+```powershell
+npm run build
+npm run verify:task24
+npm run verify:task26
+npm run verify:task27
+npm run verify:frontend:access
+npm run verify:milestoneC
+```
 
-## PostgreSQL rollout — what you need first
+## Notes
 
-The migration runbook (`Zip/03_Build/Backup Recovery and Versioning.md`) requires a **real PostgreSQL instance** before it can be executed.
-
-**What you need to prepare before Task 15:**
-
-1. **Install PostgreSQL** (or use an existing hosted instance)
-   - Minimum version: PostgreSQL 13+
-   - Windows: download from https://www.postgresql.org/download/windows/ or use winget/chocolatey
-   - Confirm `psql` and `pg_dump` are in your `PATH`
-
-2. **Create a database**
-   ```powershell
-   psql -h <host> -U <postgres> -c "CREATE DATABASE zipline;"
-   ```
-   (Replace `<host>` and `<postgres>` with your instance values)
-
-3. **Set `DATABASE_URL`**
-   Copy `.env.example` → `.env.local` and set your connection string:
-   ```
-   DATABASE_URL="postgresql://user:password@localhost:5432/zipline"
-   ```
-
-4. **Set `SESSION_SECRET`** (used for session token signing)
-   ```
-   SESSION_SECRET="any-long-random-string"
-   ```
-
-5. **Run the migration runbook** — see `Zip/03_Build/Backup Recovery and Versioning.md` Step 1–6
-
-**If you skip the migration runbook**, the app still runs in fallback mode using seed data (no PostgreSQL needed). All dev login accounts remain available.
-
-## PostgreSQL rollout status
-
-**Verified in code/build (no live DB required):**
-
-| Check | Status |
-|---|---|
-| schema validates | ✓ |
-| Prisma client generates | ✓ |
-| migration files exist (3 files, idempotent) | ✓ |
-| app builds successfully | ✓ |
-| runbook is Windows/PowerShell-ready | ✓ |
-| seed credentials match dev fallback | ✓ |
-
-**Requires a live PostgreSQL instance (not yet available in this workspace):**
-
-| Check | Status |
-|---|---|
-| migrations applied to live DB | ✗ Pending |
-| end-to-end write path smoke-tested | ✗ Pending |
-| role enforcement against live DB | ✗ Pending |
-
-The full runbook, pre-flight checklist, and rollback procedure are in `Zip/03_Build/Backup Recovery and Versioning.md`.
-
-## GitHub / deploy notes
-
-Before pushing:
-
-- make sure no `.env`, `.env.local`, API keys, or production secrets are included
-- review changed Obsidian notes so project status is truthful
-- keep `*.tsbuildinfo` and other local build artifacts out of commits
-
-For Vercel:
-
-- connect the GitHub repo
-- add required environment variables
-- if using Prisma in deploy, ensure the build step runs `prisma generate`
+- Auth is username-first and uses signed `zcc_session`.
+- Personnel and User Access are connected through shared employee-to-user sync logic.
+- Backup is currently a status/control surface, not full restore execution.

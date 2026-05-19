@@ -53,6 +53,10 @@ model Employee {
   id           String                @id @default(cuid())
   code         String                @unique
   name         String
+  englishFirstName String?
+  englishLastName  String?
+  englishNickname  String?
+  defaultUsername  String?
   nickname     String?
   role         EmployeeRole
   phone        String?
@@ -129,7 +133,9 @@ model TransportAssignment {
 model Vehicle {
   id        String   @id @default(cuid())
   code      String   @unique
+  licensePlate String?
   type      String?
+  adminNote String?
   capacity  Int?
   active    Boolean  @default(true)
   notes     String?

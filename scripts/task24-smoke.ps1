@@ -45,7 +45,7 @@ try {
   Write-Host "Task24 smoke started against $baseUrl"
 
   $login = Invoke-JsonRequest -Method "POST" -Url "$baseUrl/api/auth/login" -Body @{
-    email = "officer@zipline.com"
+    username = "officer"
     password = "zipline123"
   }
   Assert-StatusCode -Step "Login" -Actual $login.StatusCode -Expected 200

@@ -10,6 +10,10 @@ export type EmployeeRole = "Staff" | "Driver" | "Officer" | "Accounting";
 export type EmployeeRecord = {
   id: string;
   name: string;
+  englishFirstName?: string;
+  englishLastName?: string;
+  englishNickname?: string;
+  username?: string;
   nickname: string;
   role: EmployeeRole;
   phone: string;
@@ -26,7 +30,9 @@ export type ProductPacket = {
 
 export type VehicleRecord = {
   code: string;
+  licensePlate: string;
   type: string;
+  adminNote?: string;
   capacity: number | null;
   active: boolean;
   notes: string;
@@ -64,13 +70,15 @@ export type DashboardSeed = {
 };
 
 export const employeesSeed: EmployeeRecord[] = [
-  { id: "G001", name: "มานะ ขยันงาน", nickname: "มานะ", role: "Staff", phone: "089-111-1001", phone2: "086-111-1001", startDate: "2024-01-15", photo: "https://i.pravatar.cc/150?img=1" },
-  { id: "G002", name: "ปรีชา กล้าหาญ", nickname: "ปรี้", role: "Staff", phone: "089-111-1002", phone2: "086-111-1002", startDate: "2024-02-20", photo: "https://i.pravatar.cc/150?img=2" },
-  { id: "G003", name: "รัตนา สายสวย", nickname: "สาย", role: "Staff", phone: "089-111-1003", phone2: "086-111-1003", startDate: "2024-03-10", photo: "https://i.pravatar.cc/150?img=3" },
-  { id: "G004", name: "สุรีย์ คล่องตัว", nickname: "สุ๊ย", role: "Staff", phone: "089-111-1004", phone2: "086-111-1004", startDate: "2024-04-05", photo: "https://i.pravatar.cc/150?img=4" },
-  { id: "C001", name: "วิชัย รถซิ่ง", nickname: "วิ๊ก", role: "Driver", phone: "089-222-2001", phone2: "086-222-2001", startDate: "2023-11-01", photo: "https://i.pravatar.cc/150?img=5" },
-  { id: "C002", name: "นิพนธ์ ปลอดภัย", nickname: "นิพ", role: "Driver", phone: "089-222-2002", phone2: "086-222-2002", startDate: "2023-12-15", photo: "https://i.pravatar.cc/150?img=6" },
-  { id: "C003", name: "สมชาย รอบเช้า", nickname: "ชาย", role: "Driver", phone: "089-222-2003", phone2: "086-222-2003", startDate: "2024-01-08", photo: "https://i.pravatar.cc/150?img=7" }
+  { id: "F001", name: "อรอนงค์ ประสานงาน", englishFirstName: "Onanong", englishLastName: "Prasanngan", englishNickname: "On", username: "onanong.pra", nickname: "อร", role: "Officer", phone: "089-000-0101", phone2: "086-000-0101", startDate: "2023-09-01", photo: "https://i.pravatar.cc/150?img=8" },
+  { id: "A001", name: "กิตติยา บัญชีดี", englishFirstName: "Kittiya", englishLastName: "Bancheedee", englishNickname: "Kit", username: "kittiya.ban", nickname: "กิ๊บ", role: "Accounting", phone: "089-000-0201", phone2: "086-000-0201", startDate: "2023-10-01", photo: "https://i.pravatar.cc/150?img=9" },
+  { id: "S001", name: "มานะ ขยันงาน", englishFirstName: "Mana", englishLastName: "Khayanngan", englishNickname: "Mana", username: "mana.kha", nickname: "มานะ", role: "Staff", phone: "089-111-1001", phone2: "086-111-1001", startDate: "2024-01-15", photo: "https://i.pravatar.cc/150?img=1" },
+  { id: "S002", name: "ปรีชา กล้าหาญ", englishFirstName: "Preecha", englishLastName: "Klaahan", englishNickname: "Pree", username: "preecha.kla", nickname: "ปรี้", role: "Staff", phone: "089-111-1002", phone2: "086-111-1002", startDate: "2024-02-20", photo: "https://i.pravatar.cc/150?img=2" },
+  { id: "S003", name: "รัตนา สายสวย", englishFirstName: "Rattana", englishLastName: "Saisuay", englishNickname: "Sai", username: "rattana.sai", nickname: "สาย", role: "Staff", phone: "089-111-1003", phone2: "086-111-1003", startDate: "2024-03-10", photo: "https://i.pravatar.cc/150?img=3" },
+  { id: "S004", name: "สุรีย์ คล่องตัว", englishFirstName: "Suree", englishLastName: "Klongtua", englishNickname: "Sui", username: "suree.klo", nickname: "สุ๊ย", role: "Staff", phone: "089-111-1004", phone2: "086-111-1004", startDate: "2024-04-05", photo: "https://i.pravatar.cc/150?img=4" },
+  { id: "D001", name: "วิชัย รถซิ่ง", englishFirstName: "Wichai", englishLastName: "Rotsing", englishNickname: "Wick", username: "wichai.rot", nickname: "วิ๊ก", role: "Driver", phone: "089-222-2001", phone2: "086-222-2001", startDate: "2023-11-01", photo: "https://i.pravatar.cc/150?img=5" },
+  { id: "D002", name: "นิพนธ์ ปลอดภัย", englishFirstName: "Nipon", englishLastName: "Plodphai", englishNickname: "Nip", username: "nipon.plo", nickname: "นิพ", role: "Driver", phone: "089-222-2002", phone2: "086-222-2002", startDate: "2023-12-15", photo: "https://i.pravatar.cc/150?img=6" },
+  { id: "D003", name: "สมชาย รอบเช้า", englishFirstName: "Somchai", englishLastName: "Robchao", englishNickname: "Chai", username: "somchai.rob", nickname: "ชาย", role: "Driver", phone: "089-222-2003", phone2: "086-222-2003", startDate: "2024-01-08", photo: "https://i.pravatar.cc/150?img=7" }
 ];
 
 export const productPacketsSeed: ProductPacket[] = [
@@ -88,9 +96,9 @@ export const productPacketsSeed: ProductPacket[] = [
 ];
 
 export const vehiclesSeed: VehicleRecord[] = [
-  { code: "V001", type: "Van", capacity: 10, active: true, notes: "Primary morning shuttle" },
-  { code: "V002", type: "Van", capacity: 10, active: true, notes: "Flexible backup van" },
-  { code: "V003", type: "Car", capacity: 4, active: true, notes: "Light load / VIP fallback" }
+  { code: "V001", licensePlate: "30-1234 ภูเก็ต", type: "Van", adminNote: "Morning shuttle", capacity: 10, active: true, notes: "Primary morning shuttle" },
+  { code: "V002", licensePlate: "30-5678 ภูเก็ต", type: "Van", adminNote: "Backup van", capacity: 10, active: true, notes: "Flexible backup van" },
+  { code: "V003", licensePlate: "กข-4321 ภูเก็ต", type: "Car", adminNote: "VIP fallback", capacity: 4, active: true, notes: "Light load / VIP fallback" }
 ];
 
 export const timeSlots = ["07:00", "08:00", "09:00", "11:00", "12:00", "13:00"];
@@ -118,18 +126,18 @@ const guestNames = [
   "อนุชา รัตนโชติ",
   "Priya Mehta",
   "Ananya Singh",
-  "Krit Jirasak",
-  "Natthida Thongchai",
-  "Somchai Jaidee",
-  "Supranee Suwan",
+  "กฤษฎิ์ จีรศักดิ์",
+  "ณัฐธิดา ทองชัย",
+  "สมชาย ใจดี",
+  "สุปราณี สุวรรณ",
   "Marco Vitti",
   "Elena Rossi",
   "Wei-Lin Chen",
   "Yuki Tanaka",
   "Lee Dae-jung",
-  "Phattaraporn Ploy",
-  "Chalit Kasemsuk",
-  "Nont Fongmoon",
+  "ภัทราพร พลอย",
+  "ชลิต เกษมสุข",
+  "นนท์ ฟองมูล",
   "ภัทรานิษฐ์ ฐิติธรรม",
   "Thomas Gruber",
   "Anna Schmidt",
@@ -138,8 +146,8 @@ const guestNames = [
   "Liu Yang",
   "Sanjay Gupta",
   "นริศรา เจริญผล",
-  "Siriporn Srisuk",
-  "Jakkarin Pup",
+  "ศิริพร ศรีสุข",
+  "จักรินทร์ ภูผา",
   "Emma Thompson",
   "Oliver Brown",
   "นภาพร รอดสกุล",

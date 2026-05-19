@@ -26,8 +26,8 @@ try {
   log(`Task27 UI verify started against ${baseUrl}`);
 
   await page.goto(`${baseUrl}/login`, { waitUntil: "networkidle" });
-  await page.getByRole("textbox", { name: /email/i }).fill("officer@zipline.com");
-  await page.locator('input[type="password"], input[type="text"]').first().fill("zipline123");
+  await page.getByRole("textbox", { name: /username/i }).fill("officer");
+  await page.locator('input[type="password"], input[autocomplete="current-password"]').fill("zipline123");
   await page.getByRole("button", { name: /sign in/i }).click();
   await page.waitForURL(`${baseUrl}/`, { timeout: 15000 });
   await page.waitForTimeout(800);
@@ -47,6 +47,10 @@ try {
   await page.waitForSelector(".personnel-card-main", { timeout: 15000 });
   await page.locator(".personnel-card-main").first().click();
   await page.waitForSelector(".personnel-detail-panel", { timeout: 15000 });
+  const expandedPanels = await page.locator(".personnel-detail-panel").count();
+  if (expandedPanels !== 1) {
+    throw new Error(`[FAIL] Personnel expand expected exactly 1 detail panel but found ${expandedPanels}`);
+  }
   log("[OK] Personnel expand");
 
   await clickFirst(

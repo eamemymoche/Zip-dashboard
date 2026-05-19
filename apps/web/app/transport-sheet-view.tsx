@@ -65,8 +65,9 @@ export function TransportSheetView({
   const officeNotice = "ให้พนักงานขับรถเก็บข้อมูลบิลลูกค้าก่อนขึ้นรถทุกครั้ง และถ้ามีส่วนต่างให้เก็บส่วนต่างด้วย เบอร์ออฟฟิศ : 098-748-3779";
 
   function exportExcel() {
-    const tableHeader = ["#", "Package", "Agent", "Invoice", "Hotel", "Room", "Pax", "Customer Name", "Customer Phone", "Balance", "Remark"];
+    const tableHeader = ["Time Slot", "#", "Package", "Agent", "Invoice", "Hotel", "Room", "Pax", "Customer Name", "Customer Phone", "Balance", "Remark"];
     const rows = selectedDriverOrders.map((order, index) => [
+      order.time,
       index + 1,
       order.packet,
       order.agent,
@@ -96,6 +97,7 @@ export function TransportSheetView({
 
     const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
     worksheet["!cols"] = [
+      { wch: 12 },
       { wch: 5 },
       { wch: 14 },
       { wch: 18 },
@@ -110,14 +112,14 @@ export function TransportSheetView({
     ];
     worksheet["!merges"] = [
       { s: { r: 0, c: 0 }, e: { r: 0, c: 5 } },
-      { s: { r: 0, c: 8 }, e: { r: 0, c: 10 } },
-      { s: { r: 2, c: 0 }, e: { r: 2, c: 10 } },
-      { s: { r: 3, c: 0 }, e: { r: 3, c: 10 } },
+      { s: { r: 0, c: 8 }, e: { r: 0, c: 11 } },
+      { s: { r: 2, c: 0 }, e: { r: 2, c: 11 } },
+      { s: { r: 3, c: 0 }, e: { r: 3, c: 11 } },
       { s: { r: 4, c: 0 }, e: { r: 4, c: 3 } },
-      { s: { r: 4, c: 4 }, e: { r: 4, c: 10 } },
-      { s: { r: 5, c: 0 }, e: { r: 5, c: 10 } },
+      { s: { r: 4, c: 4 }, e: { r: 4, c: 11 } },
+      { s: { r: 5, c: 0 }, e: { r: 5, c: 11 } },
       { s: { r: rows.length + 9, c: 0 }, e: { r: rows.length + 9, c: 5 } },
-      { s: { r: rows.length + 9, c: 8 }, e: { r: rows.length + 9, c: 10 } }
+      { s: { r: rows.length + 9, c: 8 }, e: { r: rows.length + 9, c: 11 } }
     ];
 
     const workbook = XLSX.utils.book_new();
@@ -138,7 +140,7 @@ export function TransportSheetView({
         {driverNames.map((driver) => {
           const driverOrders = allOrdersForDate.filter((order) => order.driver === driver);
           const driverPax = driverOrders.reduce((sum, order) => sum + order.join + order.visitor, 0);
-          const rounds = [...new Set(driverOrders.map((order) => order.time))];
+          const rounds = [...new Set(driverOrders.map((order) => order.time))].sort((left, right) => left.localeCompare(right));
           const assignedVehicles = [...new Set(driverOrders.map((order) => order.vehicle).filter(Boolean))];
           return (
             <div className="driver-card" key={driver} style={{ border: selectedDriver === driver ? "2px solid #0f766e" : undefined }}>
@@ -148,19 +150,12 @@ export function TransportSheetView({
               <div className="subtle-line">งานรวม: {driverOrders.length} รายการ</div>
               <div className="subtle-line">Pax รวมทั้งวัน: {driverPax}</div>
               <div className="slot-button-wrap">
+                {rounds.map((round) => (
+                  <button key={`${driver}-${round}`} className={`slot-button${selectedDriver === driver && selectedSheetSlot === round ? " active" : ""}`} type="button" onClick={() => onSelectDriverAndSlot(driver, round)}>{round}</button>
+                ))}
                 <button className={`slot-button slot-button-wide${selectedDriver === driver && selectedSheetSlot === "ALL" ? " active" : ""}`} type="button" onClick={() => onSelectDriverAndSlot(driver, "ALL")}>
                   เปิดใบงานทั้งวัน
                 </button>
-                {rounds.map((round) => (
-                  <button
-                    key={`${driver}-${round}`}
-                    className={`slot-button${selectedDriver === driver && selectedSheetSlot === round ? " active" : ""}`}
-                    type="button"
-                    onClick={() => onSelectDriverAndSlot(driver, round)}
-                  >
-                    {round}
-                  </button>
-                ))}
               </div>
             </div>
           );
@@ -191,6 +186,7 @@ export function TransportSheetView({
             <table className="ops-table compact print-table">
               <thead>
                 <tr>
+                  <th className="job-sheet-time-header">Time Slot</th>
                   <th>#</th>
                   <th>Package</th>
                   <th>Agent</th>
@@ -207,6 +203,7 @@ export function TransportSheetView({
               <tbody>
                 {selectedDriverOrders.map((order, index) => (
                   <tr key={order.id}>
+                    <td className={`job-sheet-time-cell ${order.time < "12:00" ? "slot-morning" : "slot-afternoon"}`}><span className="job-sheet-timeslot-badge">{order.time}</span></td>
                     <td>{index + 1}</td>
                     <td>{order.packet}</td>
                     <td>{order.agent}</td>

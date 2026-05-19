@@ -1,11 +1,9 @@
-import crypto from "node:crypto";
 import process from "node:process";
 import { Client } from "pg";
 import { loadAppEnv } from "./db-env.mjs";
 
 const env = loadAppEnv();
 const baseUrl = env.ZIPLINE_BASE_URL ?? process.env.ZIPLINE_BASE_URL ?? "http://127.0.0.1:3000";
-const sessionSecret = env.SESSION_SECRET ?? "dev-secret-change-in-production";
 const connectionString = env.DATABASE_URL;
 
 if (!connectionString) {
@@ -13,13 +11,24 @@ if (!connectionString) {
   process.exit(1);
 }
 
-function managerCookie() {
-  const payload = Buffer.from(`milestone-c:MANAGER:${Date.now()}:verify`, "utf8").toString("base64url");
-  const sig = crypto.createHash("sha256").update(payload + sessionSecret).digest("hex").slice(0, 16);
-  return `zcc_session=${payload}.${sig}`;
+async function loginCookie() {
+  const response = await fetch(`${baseUrl}/api/auth/login`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ username: "officer", password: "zipline123" })
+  });
+  if (!response.ok) {
+    throw new Error(`Manager login failed: ${response.status}`);
+  }
+  const setCookie = response.headers.get("set-cookie") ?? "";
+  const match = setCookie.match(/zcc_session=([^;]+)/);
+  if (!match) {
+    throw new Error("Manager session cookie missing");
+  }
+  return `zcc_session=${match[1]}`;
 }
 
-const cookie = managerCookie();
+const cookie = await loginCookie();
 
 async function api(method, path, body) {
   const response = await fetch(`${baseUrl}${path}`, {

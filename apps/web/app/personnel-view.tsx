@@ -67,7 +67,7 @@ function PersonnelSection({
                 </div>
                 <div className="personnel-id-code">{employee.id}</div>
                 <div className="personnel-quick-contact">
-                  {employee.phone ? <span>📞 {employee.phone}</span> : null}
+                  {employee.phone ? <span>Phone: {employee.phone}</span> : null}
                 </div>
               </div>
               <div className="personnel-expand-hint">{expandedEmployeeId === employee.id ? "−" : "+"}</div>
@@ -80,6 +80,14 @@ function PersonnelSection({
                     <strong>{employee.nickname}</strong>
                   </div>
                   <div className="pd-item">
+                    <span className="pd-label">English</span>
+                    <strong>{[employee.englishFirstName, employee.englishLastName].filter(Boolean).join(" ") || "-"}</strong>
+                  </div>
+                  <div className="pd-item">
+                    <span className="pd-label">Username</span>
+                    <strong>{employee.username || "-"}</strong>
+                  </div>
+                  <div className="pd-item">
                     <span className="pd-label">{isEn ? "Main Phone" : "เบอร์หลัก"}</span>
                     <strong>{employee.phone || "-"}</strong>
                   </div>
@@ -88,7 +96,7 @@ function PersonnelSection({
                     <strong>{employee.phone2 || "-"}</strong>
                   </div>
                   <div className="pd-item">
-                    <span className="pd-label">{isEn ? "Start Date" : "วันเข้าทำงาน"}</span>
+                    <span className="pd-label">{isEn ? "Start Date" : "วันเข้างาน"}</span>
                     <strong>{employee.startDate || "-"}</strong>
                   </div>
                 </div>
@@ -142,9 +150,9 @@ export default function PersonnelView({
         </div>
 
         <PersonnelSection
-          title={t("personnel.section.staff")}
-          icon="🧑‍💼"
-          role="Staff"
+          title={t("personnel.section.officer")}
+          icon="OPS"
+          role="Officer"
           roleDotClassName="staff-dot"
           employees={employees}
           expandedEmployeeId={expandedEmployeeId}
@@ -154,11 +162,10 @@ export default function PersonnelView({
 
         <div style={{ marginTop: "24px" }}>
           <PersonnelSection
-            title={t("personnel.section.driver")}
-            icon="🚌"
-            role="Driver"
-            roleDotClassName="driver-dot"
-            avatarPlaceholderClassName="driver-color"
+            title={t("personnel.section.accounting")}
+            icon="$"
+            role="Accounting"
+            roleDotClassName="staff-dot"
             employees={employees}
             expandedEmployeeId={expandedEmployeeId}
             onToggleEmployee={onToggleEmployee}
@@ -167,9 +174,9 @@ export default function PersonnelView({
         </div>
         <div style={{ marginTop: "24px" }}>
           <PersonnelSection
-            title={t("personnel.section.officer")}
-            icon="📝"
-            role="Officer"
+            title={t("personnel.section.staff")}
+            icon="ST"
+            role="Staff"
             roleDotClassName="staff-dot"
             employees={employees}
             expandedEmployeeId={expandedEmployeeId}
@@ -180,10 +187,11 @@ export default function PersonnelView({
 
         <div style={{ marginTop: "24px" }}>
           <PersonnelSection
-            title={t("personnel.section.accounting")}
-            icon="💰"
-            role="Accounting"
-            roleDotClassName="staff-dot"
+            title={t("personnel.section.driver")}
+            icon="DR"
+            role="Driver"
+            roleDotClassName="driver-dot"
+            avatarPlaceholderClassName="driver-color"
             employees={employees}
             expandedEmployeeId={expandedEmployeeId}
             onToggleEmployee={onToggleEmployee}

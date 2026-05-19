@@ -1,7 +1,7 @@
 # Security and Multi-User Guardrails
 
 Status: Active  
-Last updated: 2026-05-18
+Last updated: 2026-05-19
 
 ## Current Security Baseline
 
@@ -53,6 +53,20 @@ Mutation routes currently using this pattern include:
 - `apps/web/app/api/product-package/route.ts`
 - `apps/web/app/api/users/route.ts`
 - `apps/web/app/api/auth/profile/route.ts`
+
+## Employee And User Sync Guardrail
+
+- Staff/Driver account sync rules now live in `apps/web/lib/auth/employee-account-sync.ts`.
+- Future agents should not duplicate username-derivation or employee-to-user upsert logic in new routes.
+- `POST/PUT /api/employee` is intentionally soft-coupled: employee save can succeed even if user sync fails.
+- Reconciliation belongs in the explicit sync surface: `POST /api/users/sync-from-employees`.
+- If this behavior changes in the future, update both this note and `[[Current Code Structure Map]]`.
+
+## Verification Guardrail
+
+- Auth/session verification scripts must stay aligned with the active login contract.
+- Current smoke scripts assume username-first login and the current `zcc_session` signing behavior.
+- If session format, login identifiers, or demo-user rules change, update the repo verification scripts in the same change set before calling the branch verified.
 
 ## Remaining Security Follow-Ups
 

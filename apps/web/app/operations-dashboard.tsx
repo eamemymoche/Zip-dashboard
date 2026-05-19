@@ -40,11 +40,12 @@ import type {
   BookingStatus,
   DashboardSeed,
   EmployeeRecord,
-  OrderRecord
+  OrderRecord,
+  VehicleRecord
 } from "../lib/ops-data";
 
 type MainView = "overview" | "orderlist" | "transport" | "staffing" | "personnel" | "accounting" | "changelog" | "useraccess" | "master" | "backup";
-type TransportView = "assign" | "recheck" | "sheet";
+type TransportView = "assign" | "recheck" | "sheet" | "vehicles";
 type StaffingView = "setup" | "board" | "kpi";
 type MasterTab = "summary" | "pivot" | "products";
 
@@ -96,6 +97,58 @@ type OrderEditForm = {
   join: string;
   visitor: string;
 };
+
+type EmployeeDraft = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  englishFirstName: string;
+  englishLastName: string;
+  englishNickname: string;
+  username: string;
+  nickname: string;
+  role: EmployeeRecord["role"];
+  phone: string;
+  phone2: string;
+  startDate: string;
+  photo: string;
+};
+
+type VehicleDraft = {
+  code: string;
+  licensePlate: string;
+  type: string;
+  adminNote: string;
+  capacity: string;
+  active: boolean;
+  notes: string;
+};
+
+const employeeRolePrefix: Record<EmployeeRecord["role"], string> = {
+  Staff: "S",
+  Driver: "D",
+  Accounting: "A",
+  Officer: "F"
+};
+
+function createDefaultUsername(firstName: string, lastName: string) {
+  const first = firstName.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+  const last = lastName.trim().toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 3);
+  return first && last ? `${first}.${last}` : "";
+}
+
+function splitThaiName(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  return { firstName: parts[0] ?? "", lastName: parts.slice(1).join(" ") };
+}
+
+function joinThaiName(firstName: string, lastName: string) {
+  return [firstName.trim(), lastName.trim()].filter(Boolean).join(" ");
+}
+
+function englishOnly(value: string) {
+  return value.replace(/[^A-Za-z\s'-]/g, "");
+}
 
 function navIcon(key: MainView) {
   const common = { viewBox: "0 0 24 24", width: 18, height: 18, fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
@@ -172,6 +225,7 @@ export function OperationsDashboard({ initialData }: { initialData: DashboardSee
   const canEditOrders = canEditBoard(moduleAccess, "orderlist");
   const [orders, setOrders] = useState(initialData.orders);
   const [employees, setEmployees] = useState(initialData.employees);
+  const [vehicles, setVehicles] = useState(initialData.vehicles);
   const [productPackets, setProductPackets] = useState(initialData.productPackets);
   const [mainView, setMainView] = useState<MainView>("orderlist");
   const [transportView, setTransportView] = useState<TransportView>("assign");
@@ -252,9 +306,14 @@ export function OperationsDashboard({ initialData }: { initialData: DashboardSee
     join: "1",
     visitor: "0"
   });
-  const [newEmployee, setNewEmployee] = useState({
+  const [newEmployee, setNewEmployee] = useState<EmployeeDraft>({
     id: "",
-    name: "",
+    firstName: "",
+    lastName: "",
+    englishFirstName: "",
+    englishLastName: "",
+    englishNickname: "",
+    username: "",
     nickname: "",
     role: "Staff" as EmployeeRecord["role"],
     phone: "",
@@ -262,12 +321,20 @@ export function OperationsDashboard({ initialData }: { initialData: DashboardSee
     startDate: "",
     photo: ""
   });
+  const [vehicleDraft, setVehicleDraft] = useState<VehicleDraft>({
+    code: "",
+    licensePlate: "",
+    type: "Van",
+    adminNote: "",
+    capacity: "10",
+    active: true,
+    notes: ""
+  });
 
   const drivers = employees.filter((employee) => employee.role === "Driver");
   const driverNames = drivers.map((employee) => employee.name);
   const staffMembers = employees.filter((employee) => employee.role === "Staff");
   const activeProductPackets = productPackets.filter((packet) => packet.active);
-  const vehicles = initialData.vehicles;
 
   const filteredOrders = buildFilteredOrders(
     orders,
@@ -496,7 +563,7 @@ export function OperationsDashboard({ initialData }: { initialData: DashboardSee
           : (lang === "en" ? "Driver Job Sheet" : "ใบงานคนขับ")
       : mainView === "staffing"
         ? staffingView === "setup"
-          ? (lang === "en" ? "Staff Setup" : "จัดสตาฟ")
+          ? (lang === "en" ? "Staff Assignment" : "จัดไกด์สนาม (Assign)")
           : staffingView === "board"
             ? (lang === "en" ? "Staff Board" : "กระดานสตาฟ")
             : (lang === "en" ? "Staff KPI" : "KPI สตาฟ")
@@ -538,6 +605,86 @@ export function OperationsDashboard({ initialData }: { initialData: DashboardSee
 
   function updateOrderAdminNote(id: number, adminNote: string) {
     updateOrder(id, (current) => ({ ...current, adminNote }));
+  }
+
+  function normalizeEmployeeId(id: string, role: EmployeeRecord["role"]) {
+    if (id.startsWith("G")) return `S${id.slice(1)}`;
+    if (id.startsWith("C")) return `D${id.slice(1)}`;
+    if (role === "Officer") return id.startsWith("F") ? id : `F${id.slice(1)}`;
+    if (role === "Accounting") return id.startsWith("A") ? id : `A${id.slice(1)}`;
+    return id;
+  }
+
+  function nextEmployeeCode(role: EmployeeRecord["role"]) {
+    const prefix = employeeRolePrefix[role];
+    const max = employees
+      .map((employee) => normalizeEmployeeId(employee.id, employee.role))
+      .filter((id) => id.startsWith(prefix))
+      .reduce((currentMax, id) => {
+        const numeric = Number(id.slice(1));
+        return Number.isFinite(numeric) ? Math.max(currentMax, numeric) : currentMax;
+      }, 0);
+    return `${prefix}${String(max + 1).padStart(3, "0")}`;
+  }
+
+  function updateEmployeeDraft(patch: Partial<EmployeeDraft>) {
+    setNewEmployee((current) => {
+      const next = { ...current, ...patch };
+      if (patch.role && !editingEmployeeId) {
+        next.id = nextEmployeeCode(patch.role);
+      }
+      if (patch.englishFirstName !== undefined || patch.englishLastName !== undefined) {
+        next.username = createDefaultUsername(next.englishFirstName, next.englishLastName);
+      }
+      return next;
+    });
+  }
+
+  function updateEnglishField(field: "englishFirstName" | "englishLastName" | "englishNickname", value: string) {
+    updateEmployeeDraft({ [field]: englishOnly(value) } as Partial<EmployeeDraft>);
+  }
+
+  function openNewEmployeeModal() {
+    setNewEmployee((current) => ({ ...current, id: nextEmployeeCode(current.role), username: createDefaultUsername(current.englishFirstName, current.englishLastName) }));
+    setShowEmployeeModal(true);
+  }
+
+  function saveVehicleDraft(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const code = vehicleDraft.code.trim().toUpperCase();
+    if (!code || !vehicleDraft.licensePlate.trim()) {
+      showToast("กรุณากรอกรหัสรถและทะเบียน", "red");
+      return;
+    }
+    const saved: VehicleRecord = {
+      code,
+      licensePlate: vehicleDraft.licensePlate.trim(),
+      type: vehicleDraft.type.trim() || "Vehicle",
+      adminNote: vehicleDraft.adminNote.trim(),
+      capacity: vehicleDraft.capacity ? Number(vehicleDraft.capacity) : null,
+      active: vehicleDraft.active,
+      notes: vehicleDraft.notes.trim()
+    };
+    setVehicles((current) => {
+      const exists = current.some((vehicle) => vehicle.code === code);
+      return exists
+        ? current.map((vehicle) => (vehicle.code === code ? saved : vehicle))
+        : [...current, saved];
+    });
+    setVehicleDraft({ code: "", licensePlate: "", type: "Van", adminNote: "", capacity: "10", active: true, notes: "" });
+    showToast("บันทึกข้อมูลรถสำเร็จ", "emerald");
+  }
+
+  function editVehicle(vehicle: VehicleRecord) {
+    setVehicleDraft({
+      code: vehicle.code,
+      licensePlate: vehicle.licensePlate || vehicle.code,
+      type: vehicle.type,
+      adminNote: vehicle.adminNote ?? "",
+      capacity: vehicle.capacity === null ? "" : String(vehicle.capacity),
+      active: vehicle.active,
+      notes: vehicle.notes
+    });
   }
 
 async function saveTransportAssignment(
@@ -834,14 +981,19 @@ async function handleNewOrderSubmit(event: React.FormEvent<HTMLFormElement>) {
 
   async function handleEmployeeSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!newEmployee.id || !newEmployee.name) {
+    const employeeName = joinThaiName(newEmployee.firstName, newEmployee.lastName);
+    if (!newEmployee.id || !employeeName) {
       return;
     }
 
-    const empData: EmployeeRecord = {
-      id: newEmployee.id,
-      name: newEmployee.name,
-      nickname: newEmployee.nickname || newEmployee.name.split(" ")[0],
+      const empData: EmployeeRecord = {
+      id: normalizeEmployeeId(newEmployee.id, newEmployee.role),
+      name: employeeName,
+      englishFirstName: newEmployee.englishFirstName,
+      englishLastName: newEmployee.englishLastName,
+      englishNickname: newEmployee.englishNickname,
+      username: newEmployee.username,
+      nickname: newEmployee.nickname || newEmployee.firstName,
       role: newEmployee.role,
       phone: newEmployee.phone,
       phone2: newEmployee.phone2,
@@ -876,13 +1028,14 @@ async function handleNewOrderSubmit(event: React.FormEvent<HTMLFormElement>) {
       }
 
       const saved = await response.json();
+      const accountSyncWarning = typeof saved.warning === "string" ? saved.warning : "";
       if (editingEmployeeId) {
         setEmployees((current) => current.map((e) => (e.id === editingEmployeeId ? saved : e)));
         setEditingEmployeeId(null);
-        showToast("แก้ไขข้อมูลสำเร็จ", "indigo");
+        showToast(accountSyncWarning ? "แก้ไขข้อมูลสำเร็จ แต่ซิงก์ user มีปัญหา" : "แก้ไขข้อมูลสำเร็จ", accountSyncWarning ? "red" : "indigo");
       } else {
         setEmployees((current) => [...current, saved]);
-        showToast("เพิ่มพนักงานสำเร็จ", "indigo");
+        showToast(accountSyncWarning ? "เพิ่มพนักงานสำเร็จ แต่ซิงก์ user มีปัญหา" : "เพิ่มพนักงานสำเร็จ", accountSyncWarning ? "red" : "indigo");
       }
 
       setShowEmployeeModal(false);
@@ -893,9 +1046,15 @@ async function handleNewOrderSubmit(event: React.FormEvent<HTMLFormElement>) {
   }
 
   function openEditEmployeeModal(emp: EmployeeRecord) {
+    const { firstName, lastName } = splitThaiName(emp.name);
     setNewEmployee({
-      id: emp.id,
-      name: emp.name,
+      id: normalizeEmployeeId(emp.id, emp.role),
+      firstName,
+      lastName,
+      englishFirstName: emp.englishFirstName ?? "",
+      englishLastName: emp.englishLastName ?? "",
+      englishNickname: emp.englishNickname ?? "",
+      username: emp.username ?? createDefaultUsername(emp.englishFirstName ?? "", emp.englishLastName ?? ""),
       nickname: emp.nickname,
       role: emp.role,
       phone: emp.phone,
@@ -908,7 +1067,7 @@ async function handleNewOrderSubmit(event: React.FormEvent<HTMLFormElement>) {
   }
 
   function resetEmployeeForm() {
-    setNewEmployee({ id: "", name: "", nickname: "", role: "Staff", phone: "", phone2: "", startDate: "", photo: "" });
+    setNewEmployee({ id: "", firstName: "", lastName: "", englishFirstName: "", englishLastName: "", englishNickname: "", username: "", nickname: "", role: "Staff", phone: "", phone2: "", startDate: "", photo: "" });
     setEditingEmployeeId(null);
   }
 
@@ -1091,8 +1250,8 @@ if (loading) {
           ["staffing", lang === "en" ? "Staff" : "งาน Staff"],
           ["personnel", lang === "en" ? "Personnel" : "บุคลากร"],
           ["accounting", lang === "en" ? "Accounting" : "งานบัญชี"],
-          ["changelog", lang === "en" ? "Changelog" : "บันทึกแก้ไข"],
           ["useraccess", lang === "en" ? "User Controls" : "ตั้งค่าผู้ใช้"],
+          ["changelog", lang === "en" ? "Changelog" : "บันทึกแก้ไข"],
           ["master", t("nav.master")],
           ["backup", lang === "en" ? "Backup" : "สำรองข้อมูล"]
         ] as [MainView, string][])
@@ -1283,7 +1442,7 @@ if (loading) {
                 <p>{lang === "en" ? "History Log" : "History Log"}</p>
               </div>
               <div className="action-group">
-<button className="primary-button order-add-button" onClick={() => setShowOrderModal(true)} disabled={!canEditOrders} title={!canEditOrders ? "ไม่มีสิทธิ์เพิ่มรายการ" : ""} type="button">
+                <button className="primary-button order-add-button" onClick={() => setShowOrderModal(true)} disabled={!canEditOrders} title={!canEditOrders ? "ไม่มีสิทธิ์เพิ่มรายการ" : ""} type="button">
                   {lang === "en" ? "+ New Order" : "+ เพิ่มรายการใหม่"}
                 </button>
                 <div className="export-dropdown-wrap">
@@ -1301,6 +1460,7 @@ if (loading) {
                         onClick={() => handleExport("xls")}
                         type="button"
                       >
+                        <span className="file-badge xls">XLS</span>
                         Excel (.xls)
                       </button>
                       <button
@@ -1308,6 +1468,7 @@ if (loading) {
                         onClick={() => handleExport("pdf")}
                         type="button"
                       >
+                        <span className="file-badge pdf">PDF</span>
                         PDF (.pdf)
                       </button>
                       <button
@@ -1315,6 +1476,7 @@ if (loading) {
                         onClick={() => handleExport("csv")}
                         type="button"
                       >
+                        <span className="file-badge csv">CSV</span>
                         CSV (.csv)
                       </button>
                     </div>
@@ -1427,11 +1589,13 @@ if (loading) {
               {(lang === "en" ? [
                 ["assign", "1. Pickup Assignment"],
                 ["recheck", "2. Pickup Recheck"],
-                ["sheet", "3. Driver Job Sheet"]
+                ["sheet", "3. Driver Job Order"],
+                ["vehicles", "4. Vehicle Setting"]
               ] : [
                 ["assign", "1. จัดรถรับลูกค้า (Assign)"],
                 ["recheck", "2. ติดตามสถานะรับ (Recheck)"],
-                ["sheet", "3. ใบงานคนขับ (Sheet)"]
+                ["sheet", "3. ใบงานคนขับ (Job Order)"],
+                ["vehicles", "4. ตั้งค่ารถ (Vehicle)"]
               ]).map(([key, label]) => (
                 <button
                   className={transportView === key ? "subnav-button active" : "subnav-button"}
@@ -1509,6 +1673,87 @@ if (loading) {
                 issuedBy={user?.displayName ?? "-"}
               />
             ) : null}
+
+            {transportView === "vehicles" ? (
+              <div className="vehicle-setting-grid">
+                <div className="table-wrap vehicle-setting-table">
+                  <table className="ops-table compact">
+                    <thead className="thead-indigo">
+                      <tr>
+                        <th className="vehicle-col-code">{lang === "en" ? "Code" : "รหัส"}</th>
+                        <th className="vehicle-col-plate">{lang === "en" ? "Plate" : "ทะเบียน"}</th>
+                        <th className="vehicle-col-type">{lang === "en" ? "Type" : "ประเภท"}</th>
+                        <th className="vehicle-col-detail">{lang === "en" ? "Detail" : "รายละเอียด"}</th>
+                        <th className="vehicle-col-adminnote">{lang === "en" ? "Admin Note" : "Admin Note"}</th>
+                        <th className="vehicle-col-seats center">Seats</th>
+                        <th className="vehicle-col-status">Status</th>
+                        <th className="vehicle-col-action"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {vehicles.map((vehicle) => (
+                        <tr key={vehicle.code}>
+                          <td className="mono vehicle-col-code">{vehicle.code}</td>
+                          <td className="strong vehicle-col-plate">{vehicle.licensePlate || vehicle.code}</td>
+                          <td className="vehicle-col-type">{vehicle.type}</td>
+                          <td className="vehicle-col-detail">{vehicle.notes || "-"}</td>
+                          <td className="vehicle-col-adminnote">{vehicle.adminNote || "-"}</td>
+                          <td className="center strong-blue vehicle-col-seats">{vehicle.capacity ?? "-"}</td>
+                          <td className="center">
+                            <span
+                              className={`assignment-badge vehicle-status-badge ${vehicle.active ? "ready" : "pending"}`}
+                              title={vehicle.active ? (lang === "en" ? "Available" : "พร้อมใช้งาน") : (lang === "en" ? "Unavailable" : "ไม่พร้อมใช้งาน")}
+                            >
+                              {vehicle.active ? (lang === "en" ? "Available" : "พร้อมใช้งาน") : (lang === "en" ? "Unavailable" : "ไม่พร้อมใช้งาน")}
+                            </span>
+                          </td>
+                          <td className="center vehicle-col-action">
+                            <button className="indigo-button vehicle-edit-button" type="button" onClick={() => editVehicle(vehicle)}>
+                              {lang === "en" ? "Edit" : "แก้ไข"}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <form className="vehicle-setting-form vehicle-setting-form-right" onSubmit={saveVehicleDraft}>
+                  <h3>{lang === "en" ? "Vehicle Setting" : "ตั้งค่ารถ"}</h3>
+                  <label>
+                    <span>{lang === "en" ? "Vehicle Code" : "รหัสรถ"}</span>
+                    <input value={vehicleDraft.code} onChange={(event) => setVehicleDraft((current) => ({ ...current, code: event.target.value }))} placeholder="V004" />
+                  </label>
+                  <label>
+                    <span>{lang === "en" ? "License Plate" : "ทะเบียน"}</span>
+                    <input value={vehicleDraft.licensePlate} onChange={(event) => setVehicleDraft((current) => ({ ...current, licensePlate: event.target.value }))} placeholder="30-0000 ภูเก็ต" />
+                  </label>
+                  <label>
+                    <span>{lang === "en" ? "Type" : "ประเภทรถ"}</span>
+                    <input value={vehicleDraft.type} onChange={(event) => setVehicleDraft((current) => ({ ...current, type: event.target.value }))} placeholder="Van" />
+                  </label>
+                    <label>
+                      <span>{lang === "en" ? "Detail" : "รายละเอียด"}</span>
+                      <input value={vehicleDraft.notes} onChange={(event) => setVehicleDraft((current) => ({ ...current, notes: event.target.value }))} placeholder="Primary morning shuttle" />
+                    </label>
+                    <label>
+                      <span>{lang === "en" ? "Admin Note" : "Admin Note"}</span>
+                      <input value={vehicleDraft.adminNote ?? ""} onChange={(event) => setVehicleDraft((current) => ({ ...current, adminNote: event.target.value }))} placeholder="Morning shuttle" />
+                    </label>
+                  <label>
+                    <span>{lang === "en" ? "Seats" : "จำนวนที่นั่ง"}</span>
+                    <input type="number" min="1" value={vehicleDraft.capacity} onChange={(event) => setVehicleDraft((current) => ({ ...current, capacity: event.target.value }))} />
+                  </label>
+                  <label>
+                    <span>{lang === "en" ? "Status" : "สถานะ"}</span>
+                    <select value={vehicleDraft.active ? "active" : "inactive"} onChange={(event) => setVehicleDraft((current) => ({ ...current, active: event.target.value === "active" }))}>
+                      <option value="active">{lang === "en" ? "Available" : "พร้อมใช้งาน"}</option>
+                      <option value="inactive">{lang === "en" ? "Unavailable" : "ไม่พร้อมใช้งาน"}</option>
+                    </select>
+                  </label>
+                  <button className="primary-button" type="submit">{lang === "en" ? "Save Vehicle" : "บันทึกรถ"}</button>
+                </form>
+              </div>
+            ) : null}
           </div>
         </section>
       ) : null}
@@ -1528,7 +1773,7 @@ if (loading) {
                 ["board", "2. Staff Work Board"],
                 ["kpi", "3. Staff KPI"]
               ] : [
-                ["setup", "1. จัดไกด์สนาม (Setup)"],
+                ["setup", "1. จัดไกด์สนาม (Assign)"],
                 ["board", "2. หน้าบอร์ดสรุปงาน"],
                 ["kpi", "3. สรุปผลงานสตาฟ (KPI)"]
               ]).map(([key, label]) => (
@@ -1593,13 +1838,13 @@ if (loading) {
       ) : null}
 
       {mainView === "personnel" ? (
-          <PersonnelView
+      <PersonnelView
           employees={employees}
           expandedEmployeeId={expandedEmployeeId}
           onToggleEmployee={(employeeId) =>
             setExpandedEmployeeId(expandedEmployeeId === employeeId ? null : employeeId)
           }
-          onOpenNewEmployee={() => setShowEmployeeModal(true)}
+          onOpenNewEmployee={openNewEmployeeModal}
           onEditEmployee={openEditEmployeeModal}
           lang={lang}
         />
@@ -1760,40 +2005,10 @@ if (loading) {
             <h3>{editingEmployeeId ? "แก้ไขข้อมูลบุคลากร" : "ลงทะเบียนบุคลากรใหม่"}</h3>
             <div className="modal-grid">
               <label>
-                <span>รหัสพนักงาน</span>
-                <input
-                  onChange={(event) => setNewEmployee((current) => ({ ...current, id: event.target.value }))}
-                  placeholder="เช่น G001 / C001"
-                  type="text"
-                  value={newEmployee.id}
-                />
-              </label>
-              <label>
-                <span>ชื่อ-นามสกุล</span>
-                <input
-                  onChange={(event) => setNewEmployee((current) => ({ ...current, name: event.target.value }))}
-                  placeholder="ชื่อ-นามสกุล"
-                  type="text"
-                  value={newEmployee.name}
-                />
-              </label>
-              <label>
-                <span>ชื่อเล่น (Nickname)</span>
-                <input
-                  onChange={(event) => setNewEmployee((current) => ({ ...current, nickname: event.target.value }))}
-                  placeholder="เช่น มิน"
-                  type="text"
-                  value={newEmployee.nickname}
-                />
-              </label>
-              <label>
                 <span>ตำแหน่ง</span>
                 <select
                   onChange={(event) =>
-                    setNewEmployee((current) => ({
-                      ...current,
-                      role: event.target.value as EmployeeRecord["role"]
-                    }))
+                    updateEmployeeDraft({ role: event.target.value as EmployeeRecord["role"] })
                   }
                   value={newEmployee.role}
                 >
@@ -1802,6 +2017,69 @@ if (loading) {
                   <option value="Officer">{lang === "en" ? "Officer" : "เจ้าหน้าที่ (Officer)"}</option>
                   <option value="Accounting">{lang === "en" ? "Accounting" : "บัญชี (Accounting)"}</option>
                 </select>
+              </label>
+              <label>
+                <span>รหัสพนักงาน</span>
+                <input
+                  onChange={(event) => setNewEmployee((current) => ({ ...current, id: event.target.value }))}
+                  placeholder="เช่น S001 / D001 / A001 / F001"
+                  type="text"
+                  value={newEmployee.id}
+                />
+              </label>
+              <label>
+                <span>ชื่อจริง</span>
+                <input
+                  onChange={(event) => updateEmployeeDraft({ firstName: event.target.value })}
+                  placeholder="ชื่อจริง"
+                  type="text"
+                  value={newEmployee.firstName}
+                />
+              </label>
+              <label>
+                <span>นามสกุล</span>
+                <input
+                  onChange={(event) => updateEmployeeDraft({ lastName: event.target.value })}
+                  placeholder="นามสกุล"
+                  type="text"
+                  value={newEmployee.lastName}
+                />
+              </label>
+              <label>
+                <span>ชื่อ (eng)</span>
+                <input
+                  onChange={(event) => updateEnglishField("englishFirstName", event.target.value)}
+                  placeholder="Mana"
+                  type="text"
+                  value={newEmployee.englishFirstName}
+                />
+              </label>
+              <label>
+                <span>นามสกุล (eng)</span>
+                <input
+                  onChange={(event) => updateEnglishField("englishLastName", event.target.value)}
+                  placeholder="Khayanngan"
+                  type="text"
+                  value={newEmployee.englishLastName}
+                />
+              </label>
+              <label>
+                <span>ชื่อเล่น</span>
+                <input
+                  onChange={(event) => updateEmployeeDraft({ nickname: event.target.value })}
+                  placeholder="เช่น มิน"
+                  type="text"
+                  value={newEmployee.nickname}
+                />
+              </label>
+              <label>
+                <span>ชื่อเล่น (eng)</span>
+                <input
+                  onChange={(event) => updateEnglishField("englishNickname", event.target.value)}
+                  placeholder="Mana"
+                  type="text"
+                  value={newEmployee.englishNickname}
+                />
               </label>
               <label>
                 <span>เบอร์โทรศัพท์</span>

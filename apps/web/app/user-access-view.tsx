@@ -73,6 +73,19 @@ const BOARD_HELP: Record<BoardKey, string> = {
   backup: "Backup, plugin recovery, and overlap safety controls"
 };
 
+const ROLE_ORDER: UserRole[] = ["SUPERADMIN", "MANAGER", "ADMIN", "ACCOUNTING", "STAFF", "DRIVER"];
+const USER_TABS: Array<UserRole | "overview"> = ["overview", "ADMIN", "ACCOUNTING", "STAFF", "DRIVER"];
+const ROLE_TONE: Record<UserRole, string> = {
+  SUPERADMIN: "tier-1",
+  MANAGER: "tier-2",
+  ADMIN: "tier-3",
+  ACCOUNTING: "tier-4",
+  STAFF: "tier-5",
+  DRIVER: "tier-6"
+};
+type SortField = "displayName" | "email" | "username" | "role";
+type SortDir = "default" | "asc" | "desc";
+
 type CreateDraft = {
   username: string;
   email: string;
@@ -105,18 +118,54 @@ export function UserAccessView({ initialUsers, lang = "th" }: Props) {
   const [createDraft, setCreateDraft] = useState<CreateDraft>(EMPTY_CREATE_DRAFT);
   const [createSaving, setCreateSaving] = useState(false);
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<UserRole | "overview">("overview");
+  const [sortField, setSortField] = useState<SortField | "">("");
+  const [sortDir, setSortDir] = useState<SortDir>("default");
+  const [syncing, setSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState("");
 
   useEffect(() => {
-    if (initialUsers.length > 0) return;
+    if (initialUsers.length > 0 || !isSuperadmin) return;
     fetch("/api/users")
       .then((r) => (r.ok ? r.json() : []))
       .then((data: UserRecord[]) => setUsers(data.length > 0 ? data : DEMO_USERS))
       .catch(() => setUsers(DEMO_USERS));
-  }, [initialUsers.length]);
+  }, [initialUsers.length, isSuperadmin]);
+
+  async function syncEmployees() {
+    if (!isSuperadmin) return;
+    setSyncing(true);
+    setSyncMessage("");
+    try {
+      const response = await fetch("/api/users/sync-from-employees", { method: "POST" });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setSyncMessage(typeof payload.error === "string" ? payload.error : "Sync failed");
+        return;
+      }
+
+      const listResponse = await fetch("/api/users");
+      const list = listResponse.ok ? ((await listResponse.json()) as UserRecord[]) : [];
+      setUsers(list.length > 0 ? list : DEMO_USERS);
+      const synced = typeof payload.syncedCount === "number" ? payload.syncedCount : 0;
+      const skipped = typeof payload.skippedCount === "number" ? payload.skippedCount : 0;
+      const errored = typeof payload.errorCount === "number" ? payload.errorCount : 0;
+      setSyncMessage(
+        isEn
+          ? `Synced ${synced}, skipped ${skipped}, errors ${errored}.`
+          : `ซิงก์สำเร็จ ${synced}, ข้าม ${skipped}, error ${errored}`
+      );
+    } catch {
+      setSyncMessage(isEn ? "Sync failed" : "ซิงก์ผู้ใช้ไม่สำเร็จ");
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   const filtered = useMemo(
-    () =>
-      users.filter((user) => {
+    () => {
+      const visible = users.filter((user) => {
+        if (activeTab !== "overview" && user.role !== activeTab) return false;
         const query = search.trim().toLowerCase();
         const byText =
           !query ||
@@ -125,9 +174,35 @@ export function UserAccessView({ initialUsers, lang = "th" }: Props) {
           user.username.toLowerCase().includes(query);
         const byRole = roleFilter === "ALL" || user.role === roleFilter;
         return byText && byRole;
-      }),
-    [roleFilter, search, users]
+      });
+      const sorted = [...visible].sort((left, right) => {
+        if (!sortField || sortDir === "default") return ROLE_ORDER.indexOf(left.role) - ROLE_ORDER.indexOf(right.role);
+        const leftValue = sortField === "role" ? ROLE_LABELS[left.role] : left[sortField];
+        const rightValue = sortField === "role" ? ROLE_LABELS[right.role] : right[sortField];
+        const cmp = leftValue.localeCompare(rightValue);
+        return sortDir === "asc" ? cmp : -cmp;
+      });
+      return sorted;
+    },
+    [activeTab, roleFilter, search, sortDir, sortField, users]
   );
+
+  function toggleUserSort(field: SortField) {
+    if (sortField !== field) {
+      setSortField(field);
+      setSortDir("asc");
+    } else if (sortDir === "asc") {
+      setSortDir("desc");
+    } else {
+      setSortField("");
+      setSortDir("default");
+    }
+  }
+
+  function userSortIcon(field: SortField) {
+    if (sortField !== field || sortDir === "default") return " ↕";
+    return sortDir === "asc" ? " ↑" : " ↓";
+  }
 
   function startEdit(user: UserRecord) {
     setEditingUser(user);
@@ -247,16 +322,29 @@ export function UserAccessView({ initialUsers, lang = "th" }: Props) {
               </option>
             ))}
           </select>
+          {isSuperadmin ? (
+            <button className="indigo-button user-access-edit-button" type="button" onClick={syncEmployees} disabled={syncing}>
+              {syncing ? (isEn ? "Syncing..." : "กำลังซิงก์...") : (isEn ? "Sync Staff/Driver" : "ซิงก์ Staff/Driver")}
+            </button>
+          ) : null}
+        </div>
+        {syncMessage ? <p className="subtle-line" style={{ marginTop: "10px" }}>{syncMessage}</p> : null}
+        <div className="user-access-tabs">
+          {USER_TABS.map((tab) => (
+            <button key={tab} className={activeTab === tab ? "user-access-tab active" : "user-access-tab"} onClick={() => setActiveTab(tab)} type="button">
+              {tab === "overview" ? (isEn ? "Overview" : "Overview") : ROLE_LABELS[tab]}
+            </button>
+          ))}
         </div>
 
         <div className="user-access-table-shell">
           <table className="user-access-table">
             <thead>
               <tr>
-                <th>{isEn ? "User" : "ผู้ใช้"}</th>
-                <th>อีเมล</th>
-                <th>{isEn ? "Username" : "ชื่อผู้ใช้งาน"}</th>
-                <th>{isEn ? "Role" : "บทบาท"}</th>
+                <th className="sortable" onClick={() => toggleUserSort("displayName")}>{isEn ? "User" : "ผู้ใช้"}{userSortIcon("displayName")}</th>
+                <th className="sortable" onClick={() => toggleUserSort("email")}>อีเมล{userSortIcon("email")}</th>
+                <th className="sortable" onClick={() => toggleUserSort("username")}>{isEn ? "Username" : "ชื่อผู้ใช้งาน"}{userSortIcon("username")}</th>
+                <th className="sortable" onClick={() => toggleUserSort("role")}>{isEn ? "Role" : "บทบาท"}{userSortIcon("role")}</th>
                 <th>{isEn ? "Board Access" : "สิทธิ์บอร์ด"}</th>
                 <th>{isEn ? "Actions" : "จัดการ"}</th>
               </tr>
@@ -283,7 +371,7 @@ export function UserAccessView({ initialUsers, lang = "th" }: Props) {
                       <td className="user-access-email">{user.email}</td>
                       <td><code className="user-access-username">{user.username}</code></td>
                       <td>
-                        <span className="user-access-role-pill">{ROLE_LABELS[user.role]}</span>
+                        <span className={`user-access-role-pill ${ROLE_TONE[user.role]}`}>{ROLE_LABELS[user.role]}</span>
                       </td>
                       <td>
                         <div className="user-access-boardlist">

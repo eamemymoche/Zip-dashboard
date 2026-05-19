@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import type { EmployeeRecord, OrderRecord, VehicleRecord } from "../lib/ops-data";
 import { DatePicker } from "./date-picker";
 
@@ -38,6 +39,10 @@ export function TransportAssignTable({
     return assignSortDir === "asc" ? " ▲" : " ▼";
   }
 
+  function slotTone(time: string) {
+    return time < "12:00" ? "slot-morning" : "slot-afternoon";
+  }
+
   return (
     <>
       <div className="toolbar muted">
@@ -67,11 +72,13 @@ export function TransportAssignTable({
             </tr>
           </thead>
           <tbody>
-            {orders.map((order) => {
+            {[...orders].sort((left, right) => left.time.localeCompare(right.time)).map((order) => {
               const disabled = savingOrderId === order.id;
               return (
-                <tr key={order.id}>
-                  <td className="slot">{order.time}</td>
+                <tr key={order.id} className="transport-index-row">
+                  <td className={`slot ${slotTone(order.time)}`}>
+                    <span className="transport-slot-sticker">{order.time}</span>
+                  </td>
                   <td>{order.hotel}</td>
                   <td className="center strong-blue">{order.join + order.visitor}</td>
                   <td>
@@ -116,6 +123,7 @@ export function TransportAssignTable({
                         .map((vehicle) => (
                           <option key={vehicle.code} value={vehicle.code}>
                             {vehicle.code}
+                            {vehicle.licensePlate ? ` · ${vehicle.licensePlate}` : ""}
                             {vehicle.type ? ` · ${vehicle.type}` : ""}
                           </option>
                         ))}

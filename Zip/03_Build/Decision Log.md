@@ -1,6 +1,107 @@
 # Decision Log
 
-*Last updated: 2026-05-18*
+*Last updated: 2026-05-19*
+
+## 2026-05-19
+
+### Decision
+
+Restore corrupted Thai display data from UTF-8 project sources, not from terminal-inlined literals.
+
+### Context
+
+During the Thai-name rollback, some updates were pushed through PowerShell in a way that converted Thai text to literal `?` characters before it reached Node/PostgreSQL. That meant the loss was real in `Employee`, `User.displayName`, and `Booking.customerName`, not only a console-rendering issue.
+
+### Consequences
+
+- Recovery logic now prefers reading Thai source data from UTF-8 files such as `packages/db/prisma/seed.mjs` before writing back to DB.
+- Future agents should not trust PowerShell console rendering for Thai verification by itself.
+- If Thai text must be restored in bulk, verify the actual stored DB value after write, not only the terminal output.
+
+## 2026-05-19
+
+### Decision
+
+Keep verification scripts aligned with the active username-first auth contract.
+
+### Context
+
+Several repo smoke scripts were still written for the older email-first login and pre-user-agent session format. The app itself was healthy, but stale verification code produced false failures and reduced trust in the release check.
+
+### Consequences
+
+- `task24`, `task26`, `task27`, `verify:frontend:access`, and `verify:milestoneC` now follow current login/session rules.
+- Runtime verification now covers the active auth path instead of relying on obsolete forged-cookie assumptions.
+- Future auth changes must update verification scripts in the same pass, not later.
+
+## 2026-05-19
+
+### Decision
+
+Keep employee-to-user sync best-effort, shared, and explicitly reconcilable instead of making Personnel saves hard-dependent on User writes.
+
+### Context
+
+The project had drifted into a brittle state where employee identity data and user-account creation were tightly coupled but not well centralized. This became risky because one schema mismatch or one sync error could break Personnel work and confuse later agents.
+
+### Consequences
+
+- Shared sync rules now live in `apps/web/lib/auth/employee-account-sync.ts`.
+- `POST/PUT /api/employee` saves employee data first, then runs user sync as a secondary best-effort step.
+- `POST /api/users/sync-from-employees` is the explicit reconciliation path and now reports `synced`, `skipped`, and `errors`.
+- Future agents should treat Personnel and User Access as connected but not transactionally inseparable systems.
+
+## 2026-05-19
+
+### Decision
+
+Treat employee identity data as the bootstrap source for internal user accounts.
+
+### Context
+
+Recent code changes added `englishFirstName`, `englishLastName`, `englishNickname`, and `defaultUsername` to the employee model. The operational need is no longer just storing people for staffing screens. Personnel data now also needs to produce stable usernames for login and user-access workflows.
+
+### Consequences
+
+- `Employee` records now own the source fields used to generate default usernames.
+- `POST/PUT /api/employee` auto-upserts a matching `User` when a default username can be derived.
+- `User Access` can trigger `/api/users/sync-from-employees` to backfill staff/driver accounts from personnel data.
+- Obsidian status notes should now describe Personnel and User Access as connected systems, not separate boards.
+
+## 2026-05-19
+
+### Decision
+
+Promote vehicle plate and dispatch admin note into first-class transport data.
+
+### Context
+
+The transport workflow had become too dependent on terse vehicle codes and hidden context. Recent UI and schema edits show the real operational identifier is the plate plus short dispatch note, especially in assignment and job-sheet flows.
+
+### Consequences
+
+- `Vehicle` now carries `licensePlate` and `adminNote` in schema/seed/load layers.
+- Transport Assign dropdowns show richer vehicle context instead of code alone.
+- Job sheet export now includes `Time Slot`, making dispatch packets easier to read and sort in the field.
+- Documentation should refer to transport vehicle data as more than a simple lookup list.
+
+## 2026-05-19
+
+### Decision
+
+Keep transport/staff/personnel UI simpler and more direct.
+
+### Context
+
+The latest feedback showed the UI was too clever. Labels in transport card views were noisy, staff assign needed to feel like the old table again, and old personnel IDs needed to stay in run number shape.
+
+### Consequences
+
+- Removed extra time-group labels from transport assign and job sheet cards.
+- Kept staff assign on a table base but with modern card-like editing inside.
+- Kept old staff/driver people in `S/D` style ids in UI data.
+- Auto-created default account notes from english name fields.
+- Export menu badge spacing was tightened.
 
 ## 2026-05-18
 

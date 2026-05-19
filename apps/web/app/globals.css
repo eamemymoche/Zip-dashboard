@@ -1501,6 +1501,21 @@ button {
   margin-top: 10px;
 }
 
+.slot-group-label {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 4px;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.slot-group-label.all-day {
+  flex-basis: 100%;
+  margin-top: 4px;
+  color: #0f766e;
+}
+
 .slot-button {
   padding: 9px 12px;
   background: #4f46e5;
@@ -1510,6 +1525,16 @@ button {
 
 .slot-button.active {
   background: #0f766e;
+}
+
+.slot-morning .transport-slot-sticker {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.slot-afternoon .transport-slot-sticker {
+  background: #ede9fe;
+  color: #5b21b6;
 }
 
 .slot-button-wide {
@@ -1577,11 +1602,48 @@ button {
   color: #0f172a;
 }
 
+.job-sheet-timeslot-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 62px;
+  padding: 4px 8px;
+  border-radius: 10px;
+  background: #e0f2fe;
+  color: #075985;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.job-sheet-time-header {
+  width: 78px;
+}
+
+.job-sheet-time-cell {
+  width: 78px;
+  padding-left: 6px;
+  padding-right: 6px;
+}
+
+.job-sheet-time-cell .job-sheet-timeslot-badge {
+  width: 100%;
+}
+
+.job-sheet-time-cell.slot-morning .job-sheet-timeslot-badge {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.job-sheet-time-cell.slot-afternoon .job-sheet-timeslot-badge {
+  background: #ede9fe;
+  color: #5b21b6;
+}
+
 .job-sheet-notice {
   margin-bottom: 8px;
   text-align: center;
-  font-size: 18px;
-  line-height: 1.45;
+  font-size: 20px;
+  line-height: 1.5;
   font-weight: 700;
 }
 
@@ -1623,7 +1685,9 @@ button {
 
 .job-export-button {
   min-width: 148px;
+  min-height: 42px;
   justify-content: center;
+  font-size: 14px;
 }
 
 .section-header-lg h2 {
@@ -1781,6 +1845,89 @@ button {
   gap: 6px;
 }
 
+.guide-table-card {
+  display: block;
+  padding: 10px;
+  border: 1px solid color-mix(in srgb, #fb923c 22%, var(--line) 78%);
+  border-radius: 16px;
+  background: linear-gradient(180deg, #fffaf5, #ffffff);
+}
+
+.guide-inline-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.guide-inline-table td {
+  border: 0;
+  padding: 6px 4px;
+  vertical-align: middle;
+}
+
+.guide-inline-label {
+  width: 74px;
+  color: #9a3412;
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.guide-inline-action {
+  width: 34px;
+  text-align: right;
+}
+
+.guide-inline-table select {
+  width: 100%;
+}
+
+.guide-add-button {
+  width: 100%;
+  min-height: 38px;
+  margin-top: 6px;
+  padding: 0 12px;
+  border: 1px dashed #fb923c;
+  border-radius: 12px;
+  background: color-mix(in srgb, #fff7ed 76%, #ffffff 24%);
+  color: #c2410c;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.guide-add-button span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: #fb923c;
+  color: #fff;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.guide-add-button small {
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.guide-remove-button {
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 999px;
+  background: #fee2e2;
+  color: #b91c1c;
+  font-size: 18px;
+  font-weight: 900;
+  line-height: 1;
+  cursor: pointer;
+}
+
 .check-pill {
   display: flex;
   align-items: center;
@@ -1808,6 +1955,155 @@ button {
 .assignment-badge.pending {
   background: #fee2e2;
   color: #b91c1c;
+}
+
+.transport-time-section-row td {
+  padding: 12px 14px !important;
+  background: #f8fafc;
+}
+
+.transport-time-section-row span {
+  display: inline-flex;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: #0f172a;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.transport-index-row .slot {
+  position: relative;
+}
+
+.transport-slot-sticker {
+  display: inline-flex;
+  min-width: 58px;
+  justify-content: center;
+  padding: 6px 10px;
+  border-radius: 0 999px 999px 0;
+  background: #e0e7ff;
+  color: #3730a3;
+  font-weight: 900;
+}
+
+.vehicle-setting-grid {
+  display: grid;
+  grid-template-columns: 1fr minmax(280px, 320px);
+  gap: 18px;
+  align-items: start;
+}
+
+.vehicle-setting-form {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  border-radius: 20px;
+  border: 1px solid var(--line);
+  background: linear-gradient(145deg, #eef2ff, #ffffff);
+}
+
+.vehicle-setting-form-right {
+  grid-column: 2;
+}
+
+.vehicle-setting-form h3 {
+  margin: 0 0 4px;
+}
+
+.vehicle-setting-form label {
+  display: grid;
+  gap: 6px;
+}
+
+.vehicle-setting-note {
+  grid-column: 1 / -1;
+}
+
+.vehicle-setting-table {
+  margin: 0;
+}
+
+.vehicle-setting-table .ops-table th,
+.vehicle-setting-table .ops-table td {
+  font-size: 14px;
+}
+
+.vehicle-setting-table .ops-table th,
+.vehicle-setting-table .ops-table td {
+  vertical-align: middle;
+}
+
+.vehicle-setting-table .ops-table td {
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+.vehicle-status-badge {
+  min-width: 88px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 900;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+.vehicle-edit-button {
+  min-width: 92px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.vehicle-col-code {
+  width: 66px;
+}
+
+.vehicle-col-plate {
+  width: 130px;
+}
+
+.vehicle-col-type {
+  width: 100px;
+}
+
+.vehicle-col-detail {
+  width: 150px;
+}
+
+.vehicle-col-adminnote {
+  width: 140px;
+}
+
+.vehicle-col-seats {
+  width: 68px;
+}
+
+.vehicle-col-status {
+  width: 116px;
+}
+
+.vehicle-col-action {
+  width: 80px;
+}
+
+.vehicle-setting-table .ops-table th.vehicle-col-status,
+.vehicle-setting-table .ops-table td.vehicle-col-status,
+.vehicle-setting-table .ops-table th.vehicle-col-action,
+.vehicle-setting-table .ops-table td.vehicle-col-action {
+  text-align: center;
+}
+
+.vehicle-setting-table .ops-table td.vehicle-col-action {
+  display: table-cell;
+}
+
+.vehicle-setting-table .ops-table td,
+.vehicle-setting-table .ops-table th {
+  line-height: 1.2;
 }
 
 .board-header-shell {
@@ -2498,6 +2794,7 @@ button {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 14px;
+  align-items: start;
 }
 
 .personnel-card {
@@ -2809,13 +3106,36 @@ button {
   box-shadow: 0 16px 40px rgba(15, 23, 42, 0.14);
   overflow: hidden;
   z-index: 100;
-  min-width: 160px;
+  min-width: 138px;
 }
 
 .export-option {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.file-badge {
+  display: inline-flex;
+  min-width: 30px;
+  justify-content: center;
+  padding: 4px 7px;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.file-badge.xls { background: #15803d; }
+.file-badge.pdf { background: #dc2626; }
+.file-badge.csv { background: #2563eb; }
+
+.export-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   width: 100%;
-  padding: 11px 16px;
+  padding: 10px 12px;
   background: none;
   border: none;
   text-align: left;
@@ -3347,6 +3667,30 @@ button {
   flex-wrap: wrap;
 }
 
+.user-access-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.user-access-tab {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  padding: 9px 14px;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.user-access-tab.active {
+  background: #0f172a;
+  color: #fff;
+  border-color: #0f172a;
+}
+
 .user-access-input,
 .user-access-select,
 .changelog-input {
@@ -3378,6 +3722,11 @@ button {
   font-size: 12px;
   color: var(--muted);
   background: color-mix(in srgb, var(--surface) 74%, var(--bg) 26%);
+}
+
+.user-access-table th.sortable {
+  cursor: pointer;
+  user-select: none;
 }
 
 .user-access-row {
@@ -3412,6 +3761,42 @@ button {
 .user-access-usercell strong,
 .user-access-role-pill {
   color: var(--ink);
+}
+
+.user-access-role-pill.tier-1 {
+  background: linear-gradient(135deg, #111827, #7c2d12);
+  border-color: #111827;
+  color: #fff;
+}
+
+.user-access-role-pill.tier-2 {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #991b1b;
+}
+
+.user-access-role-pill.tier-3 {
+  background: #ede9fe;
+  border-color: #c4b5fd;
+  color: #5b21b6;
+}
+
+.user-access-role-pill.tier-4 {
+  background: #dbeafe;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+
+.user-access-role-pill.tier-5 {
+  background: #dcfce7;
+  border-color: #86efac;
+  color: #166534;
+}
+
+.user-access-role-pill.tier-6 {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #475569;
 }
 
 .user-access-usercell span:last-child {
@@ -4115,9 +4500,9 @@ button {
     font-size: 16px;
   }
   body.print-job-sheet .job-sheet-notice {
-    font-size: 13px;
-    line-height: 1.3;
-    margin-bottom: 6px;
+    font-size: 20px;
+    line-height: 1.5;
+    margin-bottom: 8px;
   }
   body.print-job-sheet .job-sheet-table {
     border-width: 1px;

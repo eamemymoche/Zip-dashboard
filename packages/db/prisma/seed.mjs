@@ -27,71 +27,73 @@ const productPackages = [
 ];
 
 const employees = [
-  { code: "G001", name: "Mana Khayanngan", nickname: "Mana", role: "STAFF", phone: "089-111-1001", phone2: "086-111-1001", startDate: new Date("2024-01-15"), photo: "https://i.pravatar.cc/150?img=1", active: true },
-  { code: "G002", name: "Preecha Klaahan", nickname: "Pree", role: "STAFF", phone: "089-111-1002", phone2: "086-111-1002", startDate: new Date("2024-02-20"), photo: "https://i.pravatar.cc/150?img=2", active: true },
-  { code: "G003", name: "Rattana Saisuay", nickname: "Sai", role: "STAFF", phone: "089-111-1003", phone2: "086-111-1003", startDate: new Date("2024-03-10"), photo: "https://i.pravatar.cc/150?img=3", active: true },
-  { code: "G004", name: "Suree Klongtua", nickname: "Sui", role: "STAFF", phone: "089-111-1004", phone2: "086-111-1004", startDate: new Date("2024-04-05"), photo: "https://i.pravatar.cc/150?img=4", active: true },
-  { code: "C001", name: "Wichai Rotsing", nickname: "Wick", role: "DRIVER", phone: "089-222-2001", phone2: "086-222-2001", startDate: new Date("2023-11-01"), photo: "https://i.pravatar.cc/150?img=5", active: true },
-  { code: "C002", name: "Nipon Plodphai", nickname: "Nip", role: "DRIVER", phone: "089-222-2002", phone2: "086-222-2002", startDate: new Date("2023-12-15"), photo: "https://i.pravatar.cc/150?img=6", active: true },
-  { code: "C003", name: "Somchai Robchao", nickname: "Chai", role: "DRIVER", phone: "089-222-2003", phone2: "086-222-2003", startDate: new Date("2024-01-08"), photo: "https://i.pravatar.cc/150?img=7", active: true }
+  { code: "F001", name: "อรอนงค์ ประสานงาน", englishFirstName: "Onanong", englishLastName: "Prasanngan", englishNickname: "On", defaultUsername: "onanong.pra", nickname: "อร", role: "MANAGER", phone: "089-000-0101", phone2: "086-000-0101", startDate: new Date("2023-09-01"), photo: "https://i.pravatar.cc/150?img=8", active: true },
+  { code: "A001", name: "กิตติยา บัญชีดี", englishFirstName: "Kittiya", englishLastName: "Bancheedee", englishNickname: "Kit", defaultUsername: "kittiya.ban", nickname: "กิ๊บ", role: "ADMIN", phone: "089-000-0201", phone2: "086-000-0201", startDate: new Date("2023-10-01"), photo: "https://i.pravatar.cc/150?img=9", active: true },
+  { code: "S001", name: "มานะ ขยันงาน", englishFirstName: "Mana", englishLastName: "Khayanngan", englishNickname: "Mana", defaultUsername: "mana.kha", nickname: "มานะ", role: "STAFF", phone: "089-111-1001", phone2: "086-111-1001", startDate: new Date("2024-01-15"), photo: "https://i.pravatar.cc/150?img=1", active: true },
+  { code: "S002", name: "ปรีชา กล้าหาญ", englishFirstName: "Preecha", englishLastName: "Klaahan", englishNickname: "Pree", defaultUsername: "preecha.kla", nickname: "ปรี้", role: "STAFF", phone: "089-111-1002", phone2: "086-111-1002", startDate: new Date("2024-02-20"), photo: "https://i.pravatar.cc/150?img=2", active: true },
+  { code: "S003", name: "รัตนา สายสวย", englishFirstName: "Rattana", englishLastName: "Saisuay", englishNickname: "Sai", defaultUsername: "rattana.sai", nickname: "สาย", role: "STAFF", phone: "089-111-1003", phone2: "086-111-1003", startDate: new Date("2024-03-10"), photo: "https://i.pravatar.cc/150?img=3", active: true },
+  { code: "S004", name: "สุรีย์ คล่องตัว", englishFirstName: "Suree", englishLastName: "Klongtua", englishNickname: "Sui", defaultUsername: "suree.klo", nickname: "สุ๊ย", role: "STAFF", phone: "089-111-1004", phone2: "086-111-1004", startDate: new Date("2024-04-05"), photo: "https://i.pravatar.cc/150?img=4", active: true },
+  { code: "D001", name: "วิชัย รถซิ่ง", englishFirstName: "Wichai", englishLastName: "Rotsing", englishNickname: "Wick", defaultUsername: "wichai.rot", nickname: "วิ๊ก", role: "DRIVER", phone: "089-222-2001", phone2: "086-222-2001", startDate: new Date("2023-11-01"), photo: "https://i.pravatar.cc/150?img=5", active: true },
+  { code: "D002", name: "นิพนธ์ ปลอดภัย", englishFirstName: "Nipon", englishLastName: "Plodphai", englishNickname: "Nip", defaultUsername: "nipon.plo", nickname: "นิพ", role: "DRIVER", phone: "089-222-2002", phone2: "086-222-2002", startDate: new Date("2023-12-15"), photo: "https://i.pravatar.cc/150?img=6", active: true },
+  { code: "D003", name: "สมชาย รอบเช้า", englishFirstName: "Somchai", englishLastName: "Robchao", englishNickname: "Chai", defaultUsername: "somchai.rob", nickname: "ชาย", role: "DRIVER", phone: "089-222-2003", phone2: "086-222-2003", startDate: new Date("2024-01-08"), photo: "https://i.pravatar.cc/150?img=7", active: true }
 ];
 
 const vehicles = [
-  { code: "V001", type: "Van", capacity: 10, active: true, notes: "Primary morning shuttle" },
-  { code: "V002", type: "Van", capacity: 10, active: true, notes: "Flexible backup van" },
-  { code: "V003", type: "Car", capacity: 4, active: true, notes: "Light load / VIP fallback" }
+  { code: "V001", licensePlate: "30-1234 Phuket", type: "Van", adminNote: "Morning shuttle", capacity: 10, active: true, notes: "Primary morning shuttle" },
+  { code: "V002", licensePlate: "30-5678 Phuket", type: "Van", adminNote: "Backup van", capacity: 10, active: true, notes: "Flexible backup van" },
+  { code: "V003", licensePlate: "กข-4321 Phuket", type: "Car", adminNote: "VIP fallback", capacity: 4, active: true, notes: "Light load / VIP fallback" }
 ];
 
 const timeSlots = ["07:00", "08:00", "09:00", "11:00", "12:00", "13:00"];
 const agents = ["Klook", "Trip.com", "CTrip", "TTD Global", "Direct"];
 
 const guestNames = [
-  "Sompong Srisuk",
-  "Pimchanok Onwan",
+  "สมปอง ศรีสุข",
+  "พิมพ์ชนก อ่อนหวาน",
   "Kenji Ito",
   "Mina Howard",
   "Arisa Vong",
   "Napat Shore",
   "Aiko West",
-  "Parichat Rungreuang",
-  "Theerapat Sailom",
+  "ปาริฉัตร รุ่งเรือง",
+  "ธีรภัทร สายลม",
   "Rin Moss",
   "Mali Carter",
   "Tawan Patel",
-  "Jiraporn Wongsakul",
-  "Supaporn Thongtham",
-  "Chananta Boonmak",
+  "จิราพร วงศ์สกุล",
+  "สุภาพร ทองธรรม",
+  "ชนันธา บุญมาก",
   "Won Jun-ho",
   "Sung-Hee Kang",
-  "Anucha Rattanachot",
+  "อนุชา รัตนโชติ",
   "Priya Mehta",
   "Ananya Singh",
-  "Krit Jirasak",
-  "Natthida Thongchai",
-  "Somchai Jaidee",
-  "Supranee Suwan",
+  "กฤษฎิ์ จีรศักดิ์",
+  "ณัฐธิดา ทองชัย",
+  "สมชาย ใจดี",
+  "สุปราณี สุวรรณ",
   "Marco Vitti",
   "Elena Rossi",
   "Wei-Lin Chen",
   "Yuki Tanaka",
   "Lee Dae-jung",
-  "Phattaraporn Ploy",
-  "Chalit Kasemsuk",
-  "Nont Fongmoon",
-  "Phatranit Thititham",
+  "ภัทราพร พลอย",
+  "ชลิต เกษมสุข",
+  "นนท์ ฟองมูล",
+  "ภัทรานิษฐ์ ฐิตีธรรม",
   "Thomas Gruber",
   "Anna Schmidt",
-  "Thanaphon Weerachai",
+  "ธนพล วีระชัย",
   "Fang Xiaoming",
   "Liu Yang",
   "Sanjay Gupta",
-  "Narisra Charoenphon",
-  "Siriporn Srisuk",
-  "Jakkarin Pup",
+  "นริศรา เจริญผล",
+  "ศิริพร ศรีสุข",
+  "จักรินทร์ ภูผา",
   "Emma Thompson",
   "Oliver Brown",
-  "Naphaporn Rotsakul",
-  "Witthawat Sukkaew"
+  "นภาพร รอดสกุล",
+  "วิทธวัช สุขแก้ว"
 ];
 
 const hotels = [
@@ -227,6 +229,24 @@ const users = [
     }
   }
 ];
+
+for (const employee of employees) {
+  const role = employee.role === "DRIVER" ? "DRIVER" : employee.role === "ADMIN" ? "ACCOUNTING" : employee.role === "MANAGER" ? "ADMIN" : "STAFF";
+  users.push({
+    username: employee.defaultUsername,
+    email: `${employee.defaultUsername}@zipline.local`,
+    displayName: employee.name,
+    role,
+    password: "sjl123",
+    moduleAccess: role === "DRIVER"
+      ? { overview: "view", transport: "view" }
+      : role === "STAFF"
+        ? { overview: "view", transport: "edit", staffing: "edit" }
+        : role === "ACCOUNTING"
+          ? { overview: "edit", orderlist: "edit", transport: "edit", staffing: "edit", accounting: "edit", master: "edit" }
+          : { overview: "edit", orderlist: "edit", transport: "edit", staffing: "edit", personnel: "edit", master: "edit" }
+  });
+}
 
 function hashPassword(password) {
   const salt = randomBytes(16).toString("base64url");

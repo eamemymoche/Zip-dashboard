@@ -4,7 +4,6 @@ $baseUrl = if ($env:ZIPLINE_BASE_URL) { $env:ZIPLINE_BASE_URL } else { "http://1
 $managerSession = New-Object Microsoft.PowerShell.Commands.WebRequestSession
 $driverSession = New-Object Microsoft.PowerShell.Commands.WebRequestSession
 $createdBookingNumber = $null
-$sessionSecret = if ($env:SESSION_SECRET) { $env:SESSION_SECRET } else { "dev-secret-change-in-production" }
 
 function Invoke-JsonRequest {
   param(
@@ -45,42 +44,18 @@ function Invoke-ExpectStatus {
   Write-Host "[OK] $Step => $actualStatus"
 }
 
-function New-Sha256Hex {
-  param([Parameter(Mandatory = $true)][string]$InputText)
-  $bytes = [System.Text.Encoding]::UTF8.GetBytes($InputText)
-  $sha = [System.Security.Cryptography.SHA256]::Create()
-  try {
-    $hash = $sha.ComputeHash($bytes)
-  } finally {
-    $sha.Dispose()
-  }
-  return -join ($hash | ForEach-Object { $_.ToString("x2") })
-}
-
-function New-Base64Url {
-  param([Parameter(Mandatory = $true)][string]$PlainText)
-  $b64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($PlainText))
-  return $b64.TrimEnd("=").Replace("+", "-").Replace("/", "_")
-}
-
-function Set-ForgedRoleSessionCookie {
-  param(
-    [Parameter(Mandatory = $true)][Microsoft.PowerShell.Commands.WebRequestSession]$Session,
-    [Parameter(Mandatory = $true)][string]$Role
-  )
-  $payload = New-Base64Url -PlainText ("fixture-{0}:{1}:{2}" -f $Role.ToLower(), $Role, [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())
-  $sig = (New-Sha256Hex -InputText ($payload + $sessionSecret)).Substring(0, 16)
-  $token = "$payload.$sig"
-  $uri = [Uri]$baseUrl
-  $Session.Cookies.Add((New-Object System.Net.Cookie("zcc_session", $token, "/", $uri.Host)))
-  $Session.Cookies.Add((New-Object System.Net.Cookie("zcc_role", $Role, "/", $uri.Host)))
-}
-
 try {
   Write-Host "Task26 guardrail check started against $baseUrl"
 
-  # 403 checks (forged low-privilege session to avoid proxy redirect to /login)
-  Set-ForgedRoleSessionCookie -Session $driverSession -Role "DRIVER"
+  $driverLogin = Invoke-JsonRequest -Session $driverSession -Method "POST" -Url "$baseUrl/api/auth/login" -Body @{
+    username = "driver"
+    password = "driver123"
+  }
+  if ([int]$driverLogin.StatusCode -ne 200) {
+    throw "[FAIL] Driver login failed with $($driverLogin.StatusCode)"
+  }
+  Write-Host "[OK] Driver login => 200"
+
   Invoke-ExpectStatus -Step "Order create role guard" -ExpectedStatus 403 -Request {
     Invoke-JsonRequest -Session $driverSession -Method "POST" -Url "$baseUrl/api/order" -Body @{
       bookingNumber = "T26-ROLE-CHECK"
@@ -109,7 +84,7 @@ try {
   }
 
   $login = Invoke-JsonRequest -Session $managerSession -Method "POST" -Url "$baseUrl/api/auth/login" -Body @{
-    email = "officer@zipline.com"
+    username = "officer"
     password = "zipline123"
   }
   if ([int]$login.StatusCode -ne 200) {
