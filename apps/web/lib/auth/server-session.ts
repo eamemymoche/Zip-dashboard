@@ -30,6 +30,10 @@ export function isDevAuthFallbackEnabled() {
   return !isProduction() && process.env.DISABLE_DEV_AUTH_FALLBACK !== "1";
 }
 
+export function isDemoAuthEnabled() {
+  return process.env.DISABLE_DEMO_AUTH !== "1";
+}
+
 function hashUserAgent(userAgent: string | null): string {
   return createHash("sha256")
     .update((userAgent ?? "unknown") + getSessionSecret())

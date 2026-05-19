@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createPrismaClient } from "../../../../lib/prisma";
 import { defaultModuleAccessForRole, normalizeModuleAccess, type ModuleAccessMap, type UserRole } from "../../../../lib/auth/role-guards";
-import { hashPassword, hasTrustedOrigin, isDevAuthFallbackEnabled, makeSessionToken, parseSignedSessionToken, passwordNeedsRehash, verifyPassword } from "../../../../lib/auth/server-session";
+import { hashPassword, hasTrustedOrigin, isDemoAuthEnabled, makeSessionToken, parseSignedSessionToken, passwordNeedsRehash, verifyPassword } from "../../../../lib/auth/server-session";
 
 async function getPrisma() {
   return createPrismaClient();
@@ -197,7 +197,7 @@ export async function POST(request: NextRequest) {
     console.error("Login DB error:", error);
   }
 
-  const devUser = isDevAuthFallbackEnabled() ? findDevUser(identifier, password) : null;
+  const devUser = isDemoAuthEnabled() ? findDevUser(identifier, password) : null;
   if (devUser) {
     clearFailures(attemptKey);
     const token = makeSessionToken(devUser.id, devUser.role, request.headers.get("user-agent"));
@@ -235,7 +235,7 @@ export async function GET(request: NextRequest) {
     return createSecureResponse({ user: null }, { status: 200 });
   }
 
-  const devUser = isDevAuthFallbackEnabled() ? DEV_AUTH_USERS.find((user) => user.id === session.userId && user.role === session.role) : null;
+  const devUser = isDemoAuthEnabled() ? DEV_AUTH_USERS.find((user) => user.id === session.userId && user.role === session.role) : null;
   if (devUser) {
     return createSecureResponse({
       user: {
