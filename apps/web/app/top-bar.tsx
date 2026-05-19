@@ -71,6 +71,7 @@ function CameraIcon() {
 
 export function TopBar() {
   const { lang, setLang } = useLang();
+  const isEn = lang === "en";
   const { user, logout, refresh } = useAuth();
   const [theme, setTheme] = useState<Theme>("system");
   const [timeMode, setTimeMode] = useState<TimeMode>("24h");
@@ -150,7 +151,7 @@ export function TopBar() {
   async function saveProfile() {
     setMessage("");
     if (newPassword && newPassword !== confirmPassword) {
-      setMessage("รหัสผ่านใหม่และยืนยันรหัสผ่านไม่ตรงกัน");
+      setMessage(isEn ? "New password and confirmation do not match" : "รหัสผ่านใหม่และยืนยันรหัสผ่านไม่ตรงกัน");
       return;
     }
     setSaving(true);
@@ -162,7 +163,7 @@ export function TopBar() {
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        setMessage(data.error ?? "ไม่สามารถอัปเดตบัญชีได้");
+        setMessage(data.error ?? (isEn ? "Unable to update account" : "ไม่สามารถอัปเดตบัญชีได้"));
         return;
       }
       setCurrentPassword("");
@@ -171,7 +172,7 @@ export function TopBar() {
       if (user?.id) {
         localStorage.setItem(`zcc-profile-photo:${user.id}`, profilePhoto);
       }
-      setMessage("บันทึกข้อมูลบัญชีเรียบร้อย");
+      setMessage(isEn ? "Account settings saved" : "บันทึกข้อมูลบัญชีเรียบร้อย");
       await refresh();
     } finally {
       setSaving(false);
@@ -226,11 +227,11 @@ export function TopBar() {
                 <div className="user-menu-panel">
                   <button className="user-menu-item" onClick={() => { setShowProfile(true); setMenuOpen(false); }} type="button">
                     <span className="user-menu-item-icon"><SettingsIcon /></span>
-                    <span>ตั้งค่าบัญชี</span>
+                    <span>{isEn ? "Account Settings" : "ตั้งค่าบัญชี"}</span>
                   </button>
                   <button className="user-menu-item danger" onClick={() => logout()} type="button">
                     <span className="user-menu-item-icon"><LogoutIcon /></span>
-                    <span>ออกจากระบบ</span>
+                    <span>{isEn ? "Log Out" : "ออกจากระบบ"}</span>
                   </button>
                 </div>
               ) : null}
@@ -264,29 +265,29 @@ export function TopBar() {
                 </label>
               </div>
               <div>
-                <h3>ตั้งค่าบัญชีผู้ใช้</h3>
-                <p>อัปเดตชื่อที่แสดง รหัสผ่าน และข้อมูลส่วนตัวที่ใช้ในระบบ</p>
+                <h3>{isEn ? "Account Settings" : "ตั้งค่าบัญชีผู้ใช้"}</h3>
+                <p>{isEn ? "Update display name, password, and personal account details used in the system." : "อัปเดตชื่อที่แสดง รหัสผ่าน และข้อมูลส่วนตัวที่ใช้ในระบบ"}</p>
               </div>
             </div>
 
             <div className="profile-photo-actions">
               {profilePhoto ? (
-                <button className="secondary-button" onClick={() => setProfilePhoto("")} type="button">ใช้ค่าเริ่มต้น</button>
+                <button className="secondary-button" onClick={() => setProfilePhoto("")} type="button">{isEn ? "Use Default" : "ใช้ค่าเริ่มต้น"}</button>
               ) : null}
             </div>
 
             <div className="profile-meta-block">
-              <div><span>อีเมล</span><strong>{user?.email ?? "-"}</strong></div>
-              <div><span>บทบาท</span><strong>{user ? ROLE_LABELS[user.role] : "-"}</strong></div>
+              <div><span>{isEn ? "Email" : "อีเมล"}</span><strong>{user?.email ?? "-"}</strong></div>
+              <div><span>{isEn ? "Role" : "บทบาท"}</span><strong>{user ? ROLE_LABELS[user.role] : "-"}</strong></div>
             </div>
 
             <label className="profile-field">
-              <span>ชื่อที่แสดง</span>
+              <span>{isEn ? "Display Name" : "ชื่อที่แสดง"}</span>
               <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} type="text" />
             </label>
 
             <label className="profile-field">
-              <span>รหัสผ่านปัจจุบัน</span>
+              <span>{isEn ? "Current Password" : "รหัสผ่านปัจจุบัน"}</span>
               <div className="profile-password-wrap">
                 <input value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} type={showCurrentPassword ? "text" : "password"} />
                 <button className="profile-eye-btn" onClick={() => setShowCurrentPassword((value) => !value)} type="button">
@@ -296,7 +297,7 @@ export function TopBar() {
             </label>
 
             <label className="profile-field">
-              <span>รหัสผ่านใหม่</span>
+              <span>{isEn ? "New Password" : "รหัสผ่านใหม่"}</span>
               <div className="profile-password-wrap">
                 <input value={newPassword} onChange={(event) => setNewPassword(event.target.value)} type={showNewPassword ? "text" : "password"} />
                 <button className="profile-eye-btn" onClick={() => setShowNewPassword((value) => !value)} type="button">
@@ -306,13 +307,13 @@ export function TopBar() {
             </label>
 
             <label className="profile-field">
-              <span>ยืนยันรหัสผ่านใหม่</span>
+              <span>{isEn ? "Confirm New Password" : "ยืนยันรหัสผ่านใหม่"}</span>
               <input value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} type="password" />
             </label>
 
             {listAccessibleBoards(user?.moduleAccess).length ? (
               <div className="profile-access-block">
-                <span>บอร์ดที่เข้าถึงได้</span>
+                <span>{isEn ? "Accessible Boards" : "บอร์ดที่เข้าถึงได้"}</span>
                 <div className="profile-access-list">{listAccessibleBoards(user?.moduleAccess).join(", ")}</div>
               </div>
             ) : null}
@@ -320,9 +321,9 @@ export function TopBar() {
             {message ? <div className="profile-message">{message}</div> : null}
 
             <div className="modal-actions profile-modal-actions">
-              <button onClick={() => setShowProfile(false)} type="button">ปิด</button>
+              <button onClick={() => setShowProfile(false)} type="button">{isEn ? "Close" : "ปิด"}</button>
               <button className="primary-button" disabled={saving} onClick={saveProfile} type="button">
-                {saving ? "กำลังบันทึก..." : "บันทึก"}
+                {saving ? (isEn ? "Saving..." : "กำลังบันทึก...") : (isEn ? "Save" : "บันทึก")}
               </button>
             </div>
           </div>

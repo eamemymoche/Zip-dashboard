@@ -7,14 +7,17 @@ type Props = {
   boardOrders: OrderRecord[];
   initialData: Pick<DashboardSeed, "timeSlots">;
   onBoardDateChange: (value: string) => void;
+  lang?: "th" | "en";
 };
 
 export default function StaffingBoardView({
   boardDate,
   boardOrders,
   initialData,
-  onBoardDateChange
+  onBoardDateChange,
+  lang = "th"
 }: Props) {
+  const isEn = lang === "en";
   return (
     <>
       <div className="board-header-shell">
@@ -51,7 +54,7 @@ export default function StaffingBoardView({
                       <div className="board-alert">--- NO SHOW ---</div>
                     ) : (
                       <div className="board-staff-line">
-                        {order.assignedStaff.join(" / ") || "-- รอจัด --"}
+                        {order.assignedStaff.join(" / ") || (isEn ? "-- Pending assignment --" : "-- รอจัด --")}
                       </div>
                     )}
                   </div>

@@ -1,7 +1,7 @@
 import { config as loadEnv } from "dotenv";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { createHash } from "crypto";
+import { randomBytes, scryptSync } from "crypto";
 
 loadEnv({ path: ".env.local" });
 loadEnv();
@@ -228,10 +228,10 @@ const users = [
   }
 ];
 
-const SESSION_SECRET = process.env.SESSION_SECRET ?? "dev-secret-change-in-production";
-
 function hashPassword(password) {
-  return createHash("sha256").update(password + SESSION_SECRET).digest("hex");
+  const salt = randomBytes(16).toString("base64url");
+  const derived = scryptSync(password, salt, 64).toString("base64url");
+  return `scrypt$${salt}$${derived}`;
 }
 
 function createOrderStatus(index) {

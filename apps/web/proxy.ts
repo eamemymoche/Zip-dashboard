@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSessionFromRequest } from "./lib/auth/server-session";
 
 const SESSION_COOKIE = "zcc_session";
-const SESSION_ROLE_COOKIE = "zcc_role";
 
 const PUBLIC_PATHS = ["/login", "/api/auth", "/api/subagent"];
 
@@ -40,7 +39,6 @@ export async function proxy(request: NextRequest) {
     loginUrl.searchParams.set("from", pathname);
     const response = NextResponse.redirect(loginUrl);
     response.cookies.delete(SESSION_COOKIE);
-    response.cookies.delete(SESSION_ROLE_COOKIE);
     return response;
   }
   const role = session.role;

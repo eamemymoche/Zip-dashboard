@@ -9,18 +9,21 @@
 
 ## Security / backend improvement
 
-1. replace any remaining client-trusted role paths with session-derived authorization only
-2. add shared API response hardening helpers where useful
-3. add explicit audit actor ids on more mutation endpoints
-4. consider moving in-memory login throttling to Redis/store if the app leaves single-node local use
+1. verify production env uses a real `SESSION_SECRET` of 32+ chars; production runtime now rejects missing/default/short secrets
+2. keep dev auth fallback local-only; production blocks fallback users via `isDevAuthFallbackEnabled()`
+3. migrate any newly added write API through `requireRole()` plus `auditData()` from `apps/web/lib/auth/server-session.ts`
+4. keep password writes on `hashPassword()`; legacy SHA-256 hashes are accepted only for login/change-password migration
+5. consider moving in-memory login throttling to Redis/store if the app leaves single-node local use
 
 ## Data / operations
 
 1. confirm task 16 generated dataset behavior inside the live running app
 2. add a documented reseed/reset workflow for local review sessions
 3. decide whether accounting should remain placeholder or become a DB-backed workflow next
+4. keep `GET /api/backup/status` read-only while backup artifacts/storage target are still being designed
+5. add checksum verification and dry-run compare for backup overlap recovery
 
 ## Release / deployment
 
 1. verify Vercel env + migrations before next production sync
-2. decide whether demo fallback should stay enabled in production builds
+2. confirm no production deployment depends on `zcc_role`; role authority is now signed `zcc_session` only

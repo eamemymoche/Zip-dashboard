@@ -21,6 +21,7 @@ type Props = {
   onSetTransportDate: (date: string) => void;
   onUpdateOrder: (id: number, updater: (order: OrderRecord) => OrderRecord) => void;
   onSavePickupStatus?: (bookingNumber: string, status: string, note?: string, order?: OrderRecord) => Promise<void>;
+  lang?: "th" | "en";
 };
 
 function statusClass(status: string) {
@@ -52,31 +53,33 @@ export function TransportRecheckTable({
   onSetRecheckDriverFilter,
   onSetTransportDate,
   onUpdateOrder,
-  onSavePickupStatus
+  onSavePickupStatus,
+  lang = "th"
 }: Props) {
+  const isEn = lang === "en";
   return (
     <>
       <div className="stats-grid">
-        <div className="stats-card" onClick={() => onSetRecheckStatusFilter("ALL")} style={{cursor:"pointer"}}>
-          <span>ทั้งหมด</span>
+          <div className="stats-card" onClick={() => onSetRecheckStatusFilter("ALL")} style={{cursor:"pointer"}}>
+          <span>{isEn ? "All" : "ทั้งหมด"}</span>
           <strong>{dayOrders.length}</strong>
         </div>
-        <div className="stats-card" onClick={() => onSetRecheckStatusFilter("WAITING")} style={{cursor:"pointer"}}>
+          <div className="stats-card" onClick={() => onSetRecheckStatusFilter("WAITING")} style={{cursor:"pointer"}}>
           <span>Waiting</span>
           <strong>{dayOrders.filter((order) => order.boarding === "WAITING").length}</strong>
         </div>
-        <div className="stats-card" onClick={() => onSetRecheckStatusFilter("BOARDED")} style={{cursor:"pointer"}}>
+          <div className="stats-card" onClick={() => onSetRecheckStatusFilter("BOARDED")} style={{cursor:"pointer"}}>
           <span>Boarded</span>
           <strong>{dayOrders.filter((order) => order.boarding === "BOARDED").length}</strong>
         </div>
-        <div className="stats-card danger" onClick={() => onSetRecheckStatusFilter("NO_SHOW")} style={{cursor:"pointer"}}>
+          <div className="stats-card danger" onClick={() => onSetRecheckStatusFilter("NO_SHOW")} style={{cursor:"pointer"}}>
           <span>No Show</span>
           <strong>{dayOrders.filter((order) => order.boarding === "NO_SHOW").length}</strong>
         </div>
       </div>
       <div className="toolbar muted">
         <label>
-          <span>วันที่</span>
+          <span>{isEn ? "Date" : "วันที่"}</span>
           <DatePicker
             value={transportDate}
             onChange={(v) => onSetTransportDate(v)}
@@ -84,12 +87,12 @@ export function TransportRecheckTable({
           />
         </label>
         <label>
-          <span>คนขับ</span>
+          <span>{isEn ? "Driver" : "คนขับ"}</span>
           <select
             onChange={(event) => onSetRecheckDriverFilter(event.target.value)}
             value={recheckDriverFilter}
           >
-            <option value="ALL">ทุกคน</option>
+            <option value="ALL">{isEn ? "All" : "ทุกคน"}</option>
             {driversInDay.map((driver) => (
               <option key={driver} value={driver}>
                 {driver}
@@ -102,11 +105,11 @@ export function TransportRecheckTable({
         <table className="ops-table compact">
           <thead className="thead-navy">
             <tr>
-              <th className={`sortable${recheckSortField === "time" ? " sort-active" : ""}`} onClick={() => onToggleRecheckSort("time")}>รอบ / คนขับ{onRecheckSortIcon("time")}</th>
-              <th className={`sortable${recheckSortField === "hotel" ? " sort-active" : ""}`} onClick={() => onToggleRecheckSort("hotel")}>โรงแรม{onRecheckSortIcon("hotel")}</th>
+              <th className={`sortable${recheckSortField === "time" ? " sort-active" : ""}`} onClick={() => onToggleRecheckSort("time")}>{isEn ? "Slot / Driver" : "รอบ / คนขับ"}{onRecheckSortIcon("time")}</th>
+              <th className={`sortable${recheckSortField === "hotel" ? " sort-active" : ""}`} onClick={() => onToggleRecheckSort("hotel")}>{isEn ? "Hotel" : "โรงแรม"}{onRecheckSortIcon("hotel")}</th>
               <th className="center">Pax</th>
-              <th>ลูกค้า</th>
-              <th className={`center sortable${recheckSortField === "status" ? " sort-active" : ""}`} onClick={() => onToggleRecheckSort("status")}>สถานะ{onRecheckSortIcon("status")}</th>
+              <th>{isEn ? "Customer" : "ลูกค้า"}</th>
+              <th className={`center sortable${recheckSortField === "status" ? " sort-active" : ""}`} onClick={() => onToggleRecheckSort("status")}>{isEn ? "Status" : "สถานะ"}{onRecheckSortIcon("status")}</th>
               <th>Action</th>
             </tr>
           </thead>
@@ -159,9 +162,9 @@ export function TransportRecheckTable({
                       }
                     }}
                     type="button"
-                  >
-                    ย้ายรอบรับใหม่
-                  </button>
+                   >
+                     {isEn ? "Move to next slot" : "ย้ายรอบรับใหม่"}
+                   </button>
                 </td>
               </tr>
             ))}

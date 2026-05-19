@@ -23,7 +23,7 @@ export type UserRecord = {
   moduleAccess?: ModuleAccessMap;
 };
 
-type Props = { initialUsers: UserRecord[] };
+type Props = { initialUsers: UserRecord[]; lang?: "th" | "en" };
 
 const DEMO_USERS: UserRecord[] = [
   { id: "demo-superadmin-001", username: "superadmin", email: "superadmin@demo.local", displayName: "SuperAdmin Dev", role: "SUPERADMIN", active: true, moduleAccess: defaultModuleAccessForRole("SUPERADMIN") },
@@ -43,7 +43,21 @@ const BOARD_LABELS: Record<BoardKey, string> = {
   accounting: "งานบัญชี",
   changelog: "บันทึกแก้ไข",
   useraccess: "ตั้งค่าผู้ใช้",
-  master: "Master Ops"
+  master: "Master Ops",
+  backup: "สำรองข้อมูล"
+};
+
+const BOARD_LABELS_EN: Record<BoardKey, string> = {
+  overview: "Overview",
+  orderlist: "Order List",
+  transport: "Transport",
+  staffing: "Staff",
+  personnel: "Personnel",
+  accounting: "Accounting",
+  changelog: "Changelog",
+  useraccess: "User Controls",
+  master: "Master Ops",
+  backup: "Backup"
 };
 
 const BOARD_HELP: Record<BoardKey, string> = {
@@ -55,7 +69,8 @@ const BOARD_HELP: Record<BoardKey, string> = {
   accounting: "Accounting workspace placeholder",
   changelog: "System change history and audit timeline",
   useraccess: "Roles and access control settings",
-  master: "Master data and package management"
+  master: "Master data and package management",
+  backup: "Backup, plugin recovery, and overlap safety controls"
 };
 
 type CreateDraft = {
@@ -74,7 +89,9 @@ const EMPTY_CREATE_DRAFT: CreateDraft = {
   role: "STAFF"
 };
 
-export function UserAccessView({ initialUsers }: Props) {
+export function UserAccessView({ initialUsers, lang = "th" }: Props) {
+  const isEn = lang === "en";
+  const boardLabels = isEn ? BOARD_LABELS_EN : BOARD_LABELS;
   const { user: currentUser } = useAuth();
   const isSuperadmin = currentUser?.role === "SUPERADMIN";
   const [users, setUsers] = useState<UserRecord[]>(initialUsers);
@@ -187,7 +204,7 @@ export function UserAccessView({ initialUsers }: Props) {
 
   async function deleteUser(userId: string) {
     if (!isSuperadmin) return;
-    const confirmDelete = window.confirm("ยืนยันการลบผู้ใช้งาน?");
+    const confirmDelete = window.confirm(isEn ? "Confirm user deletion?" : "ยืนยันการลบผู้ใช้งาน?");
     if (!confirmDelete) return;
     setDeletingUserId(userId);
     try {
@@ -205,12 +222,12 @@ export function UserAccessView({ initialUsers }: Props) {
       <div className="glass-card user-access-card">
         <div className="section-header">
           <div>
-            <h2>ตั้งค่าผู้ใช้</h2>
-            <p>จัดการบทบาท สิทธิ์การเข้าถึง และสิทธิ์แก้ไขรายบอร์ด</p>
+            <h2>{isEn ? "User Controls" : "ตั้งค่าผู้ใช้"}</h2>
+            <p>{isEn ? "Manage roles, board access, and edit permissions." : "จัดการบทบาท สิทธิ์การเข้าถึง และสิทธิ์แก้ไขรายบอร์ด"}</p>
           </div>
           {isSuperadmin ? (
             <button className="primary-button order-add-button" type="button" onClick={() => setShowCreateModal(true)}>
-              + เพิ่มผู้ใช้งาน
+              {isEn ? "+ Add User" : "+ เพิ่มผู้ใช้งาน"}
             </button>
           ) : null}
         </div>
@@ -220,10 +237,10 @@ export function UserAccessView({ initialUsers }: Props) {
             className="user-access-input"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="ค้นหาชื่อผู้ใช้ ชื่อแสดงผล หรืออีเมล"
+            placeholder={isEn ? "Search username, display name, or email" : "ค้นหาชื่อผู้ใช้ ชื่อแสดงผล หรืออีเมล"}
           />
           <select className="user-access-select" value={roleFilter} onChange={(event) => setRoleFilter(event.target.value as UserRole | "ALL")}>
-            <option value="ALL">ทุกสิทธิ์</option>
+            <option value="ALL">{isEn ? "All roles" : "ทุกสิทธิ์"}</option>
             {ALL_ROLES.map((role) => (
               <option key={role} value={role}>
                 {ROLE_LABELS[role]}
@@ -236,18 +253,18 @@ export function UserAccessView({ initialUsers }: Props) {
           <table className="user-access-table">
             <thead>
               <tr>
-                <th>ผู้ใช้</th>
+                <th>{isEn ? "User" : "ผู้ใช้"}</th>
                 <th>อีเมล</th>
-                <th>ชื่อผู้ใช้งาน</th>
-                <th>บทบาท</th>
-                <th>สิทธิ์บอร์ด</th>
-                <th>จัดการ</th>
+                <th>{isEn ? "Username" : "ชื่อผู้ใช้งาน"}</th>
+                <th>{isEn ? "Role" : "บทบาท"}</th>
+                <th>{isEn ? "Board Access" : "สิทธิ์บอร์ด"}</th>
+                <th>{isEn ? "Actions" : "จัดการ"}</th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="user-access-empty">ไม่พบผู้ใช้</td>
+                  <td colSpan={6} className="user-access-empty">{isEn ? "No users found" : "ไม่พบผู้ใช้"}</td>
                 </tr>
               ) : (
                 filtered.map((user) => {
@@ -272,7 +289,7 @@ export function UserAccessView({ initialUsers }: Props) {
                         <div className="user-access-boardlist">
                           {boards.slice(0, 4).map((board) => (
                             <span key={board} className="user-access-boardpill">
-                              {BOARD_LABELS[board]}
+                              {boardLabels[board]}
                             </span>
                           ))}
                           {boards.length > 4 ? <span className="user-access-boardpill muted">+{boards.length - 4}</span> : null}
@@ -281,11 +298,11 @@ export function UserAccessView({ initialUsers }: Props) {
                       <td>
                         <div className="user-access-actions">
                           <button className="indigo-button user-access-edit-button" type="button" onClick={() => startEdit(user)}>
-                            แก้ไขสิทธิ์
+                            {isEn ? "Edit Access" : "แก้ไขสิทธิ์"}
                           </button>
                           {isSuperadmin ? (
                             <button className="danger-button user-access-delete-button" type="button" onClick={() => deleteUser(user.id)} disabled={deletingUserId === user.id}>
-                              {deletingUserId === user.id ? "กำลังลบ..." : "ลบผู้ใช้งาน"}
+                              {deletingUserId === user.id ? (isEn ? "Deleting..." : "กำลังลบ...") : (isEn ? "Delete User" : "ลบผู้ใช้งาน")}
                             </button>
                           ) : null}
                         </div>
@@ -302,26 +319,26 @@ export function UserAccessView({ initialUsers }: Props) {
       {showCreateModal ? (
         <div className="modal-backdrop">
           <div className="modal-card user-access-create-modal">
-            <h3>เพิ่มผู้ใช้งานใหม่</h3>
+            <h3>{isEn ? "Add New User" : "เพิ่มผู้ใช้งานใหม่"}</h3>
             <div className="modal-grid user-access-create-grid">
               <label>
-                <span>ชื่อผู้ใช้งาน</span>
+                <span>{isEn ? "Username" : "ชื่อผู้ใช้งาน"}</span>
                 <input value={createDraft.username} onChange={(event) => setCreateDraft((current) => ({ ...current, username: event.target.value }))} placeholder="supervisor01" />
               </label>
               <label>
-                <span>อีเมล</span>
+                <span>{isEn ? "Email" : "อีเมล"}</span>
                 <input value={createDraft.email} onChange={(event) => setCreateDraft((current) => ({ ...current, email: event.target.value }))} placeholder="manager@demo.local" />
               </label>
               <label>
-                <span>ชื่อแสดงผล</span>
+                <span>{isEn ? "Display Name" : "ชื่อแสดงผล"}</span>
                 <input value={createDraft.displayName} onChange={(event) => setCreateDraft((current) => ({ ...current, displayName: event.target.value }))} placeholder="Manager Dev" />
               </label>
               <label>
-                <span>รหัสผ่าน</span>
+                <span>{isEn ? "Password" : "รหัสผ่าน"}</span>
                 <input value={createDraft.password} onChange={(event) => setCreateDraft((current) => ({ ...current, password: event.target.value }))} type="password" />
               </label>
               <label className="user-access-role-field">
-                <span>บทบาท</span>
+                <span>{isEn ? "Role" : "บทบาท"}</span>
                 <select className="user-access-select" value={createDraft.role} onChange={(event) => setCreateDraft((current) => ({ ...current, role: event.target.value as UserRole }))}>
                   {ALL_ROLES.map((role) => (
                     <option key={role} value={role}>
@@ -332,9 +349,9 @@ export function UserAccessView({ initialUsers }: Props) {
               </label>
             </div>
             <div className="modal-actions">
-              <button type="button" onClick={() => setShowCreateModal(false)}>ยกเลิก</button>
+              <button type="button" onClick={() => setShowCreateModal(false)}>{isEn ? "Cancel" : "ยกเลิก"}</button>
               <button type="button" className="primary-button" onClick={createUser} disabled={createSaving}>
-                {createSaving ? "กำลังบันทึก..." : "สร้างผู้ใช้งาน"}
+                {createSaving ? (isEn ? "Saving..." : "กำลังบันทึก...") : (isEn ? "Create User" : "สร้างผู้ใช้งาน")}
               </button>
             </div>
           </div>
@@ -346,14 +363,14 @@ export function UserAccessView({ initialUsers }: Props) {
           <div className="modal-card large user-access-modal">
             <div className="user-access-modal-head">
               <div>
-                <h3>แก้ไขสิทธิ์ผู้ใช้</h3>
+                <h3>{isEn ? "Edit User Access" : "แก้ไขสิทธิ์ผู้ใช้"}</h3>
                 <p>{editingUser.displayName} · {editingUser.username}</p>
               </div>
               <span className="user-access-role-badge">{ROLE_LABELS[draftRole]}</span>
             </div>
 
             <label className="user-access-role-field">
-              <span>บทบาท</span>
+              <span>{isEn ? "Role" : "บทบาท"}</span>
               <select className="user-access-select" value={draftRole} onChange={(event) => applyRole(event.target.value as UserRole)}>
                 {ALL_ROLES.map((role) => (
                   <option key={role} value={role}>
@@ -370,7 +387,7 @@ export function UserAccessView({ initialUsers }: Props) {
                 return (
                   <div key={board} className={`user-access-permission-card${allowed ? "" : " disabled"}`}>
                     <div className="user-access-permission-copy">
-                      <strong>{BOARD_LABELS[board]}</strong>
+                      <strong>{boardLabels[board]}</strong>
                       <span>{BOARD_HELP[board]}</span>
                     </div>
                     <div className="user-access-permission-toggle">
@@ -406,10 +423,10 @@ export function UserAccessView({ initialUsers }: Props) {
 
             <div className="modal-actions">
               <button type="button" onClick={() => setEditingUser(null)}>
-                ยกเลิก
+                {isEn ? "Cancel" : "ยกเลิก"}
               </button>
               <button type="button" className="primary-button" onClick={saveEdit} disabled={saving}>
-                {saving ? "กำลังบันทึก..." : "บันทึก"}
+                {saving ? (isEn ? "Saving..." : "กำลังบันทึก...") : (isEn ? "Save" : "บันทึก")}
               </button>
             </div>
           </div>

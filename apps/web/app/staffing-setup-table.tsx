@@ -14,6 +14,7 @@ type Props = {
   onStaffPacketChange: (v: string) => void;
   updateOrder: (id: number, updater: (order: OrderRecord) => OrderRecord) => void;
   saveStaffAssignment: (orderId: number, assignedStaff: string[]) => void;
+  lang?: "th" | "en";
 };
 
 export default function StaffingSetupTable({
@@ -27,8 +28,10 @@ export default function StaffingSetupTable({
   onStaffTimeChange,
   onStaffPacketChange,
   updateOrder,
-  saveStaffAssignment
+  saveStaffAssignment,
+  lang = "th"
 }: Props) {
+  const isEn = lang === "en";
   const packetsInDay = [...new Set(staffingOrders.map((order) => order.packet))];
 
   return (
@@ -40,7 +43,7 @@ export default function StaffingSetupTable({
           style={{ fontSize: "13px" }}
         />
         <select onChange={(e) => onStaffTimeChange(e.target.value)} value={staffTime}>
-          <option value="ALL">ทุกรอบ</option>
+          <option value="ALL">{isEn ? "All slots" : "ทุกรอบ"}</option>
           {initialData.timeSlots.map((slot) => (
             <option key={slot} value={slot}>
               {slot}
@@ -48,7 +51,7 @@ export default function StaffingSetupTable({
           ))}
         </select>
         <select onChange={(e) => onStaffPacketChange(e.target.value)} value={staffPacket}>
-          <option value="ALL">ทุก Package</option>
+          <option value="ALL">{isEn ? "All packages" : "ทุก Package"}</option>
           {packetsInDay.map((packet) => (
             <option key={packet} value={packet}>
               {packet}
@@ -60,11 +63,11 @@ export default function StaffingSetupTable({
         <table className="ops-table compact">
           <thead className="thead-orange">
             <tr>
-              <th>รอบ</th>
+              <th>{isEn ? "Slot" : "รอบ"}</th>
               <th>Packet / Booking</th>
-              <th>ลูกค้า</th>
-              <th className="center">Join (คนเล่น)</th>
-              <th>เลือกไกด์ (&gt;= 2 คน)</th>
+              <th>{isEn ? "Customer" : "ลูกค้า"}</th>
+              <th className="center">{isEn ? "Join" : "Join (คนเล่น)"}</th>
+              <th>{isEn ? "Select Guides (>= 2)" : "เลือกไกด์ (&gt;= 2 คน)"}</th>
               <th className="center">Status</th>
             </tr>
           </thead>

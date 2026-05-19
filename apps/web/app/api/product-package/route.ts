@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ALLOWED_ROLES_PRODUCT_WRITE } from "../../../lib/auth/role-guards";
-import { getRoleFromRequest, roleGuard } from "../../../lib/auth/server-session";
+import { auditData, requireRole } from "../../../lib/auth/server-session";
 import { createPrismaClient } from "../../../lib/prisma";
 
 export async function POST(request: NextRequest) {
-  const role = getRoleFromRequest(request);
-  const denied = roleGuard(role, ALLOWED_ROLES_PRODUCT_WRITE);
-  if (denied) return denied;
+  const auth = requireRole(request, ALLOWED_ROLES_PRODUCT_WRITE);
+  if ("response" in auth) return auth.response;
 
   let prisma;
   try {
@@ -37,6 +36,15 @@ export async function POST(request: NextRequest) {
       }
     });
 
+    await prisma.auditLog.create({
+      data: auditData(auth.userId, {
+        entityType: "ProductPackage",
+        entityId: created.id,
+        action: "product.created",
+        afterJson: JSON.stringify({ name: created.name, active: created.active })
+      })
+    });
+
     return NextResponse.json(
       { name: created.name, detail: created.detail, active: created.active },
       { status: 201 }
@@ -44,15 +52,12 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Product package create error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
-  } finally {
-    await prisma.$disconnect();
   }
 }
 
 export async function PUT(request: NextRequest) {
-  const role = getRoleFromRequest(request);
-  const denied = roleGuard(role, ALLOWED_ROLES_PRODUCT_WRITE);
-  if (denied) return denied;
+  const auth = requireRole(request, ALLOWED_ROLES_PRODUCT_WRITE);
+  if ("response" in auth) return auth.response;
 
   let prisma;
   try {
@@ -88,19 +93,26 @@ export async function PUT(request: NextRequest) {
       data: { name: nextName, detail: nextDetail }
     });
 
+    await prisma.auditLog.create({
+      data: auditData(auth.userId, {
+        entityType: "ProductPackage",
+        entityId: updated.id,
+        action: "product.updated",
+        beforeJson: JSON.stringify({ name: existing.name, detail: existing.detail, active: existing.active }),
+        afterJson: JSON.stringify({ name: updated.name, detail: updated.detail, active: updated.active })
+      })
+    });
+
     return NextResponse.json({ name: updated.name, detail: updated.detail, active: updated.active });
   } catch (error) {
     console.error("Product package update error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
-  } finally {
-    await prisma.$disconnect();
   }
 }
 
 export async function PATCH(request: NextRequest) {
-  const role = getRoleFromRequest(request);
-  const denied = roleGuard(role, ALLOWED_ROLES_PRODUCT_WRITE);
-  if (denied) return denied;
+  const auth = requireRole(request, ALLOWED_ROLES_PRODUCT_WRITE);
+  if ("response" in auth) return auth.response;
 
   let prisma;
   try {
@@ -128,11 +140,19 @@ export async function PATCH(request: NextRequest) {
       data: { active }
     });
 
+    await prisma.auditLog.create({
+      data: auditData(auth.userId, {
+        entityType: "ProductPackage",
+        entityId: updated.id,
+        action: "product.toggled",
+        beforeJson: JSON.stringify({ name: existing.name, active: existing.active }),
+        afterJson: JSON.stringify({ name: updated.name, active: updated.active })
+      })
+    });
+
     return NextResponse.json({ name: updated.name, detail: updated.detail, active: updated.active });
   } catch (error) {
     console.error("Product package toggle error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
-  } finally {
-    await prisma.$disconnect();
   }
 }

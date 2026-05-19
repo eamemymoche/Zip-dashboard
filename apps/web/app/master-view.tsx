@@ -24,6 +24,7 @@ type MasterViewProps = {
   onTogglePacketActive: (packet: ProductPacket) => void;
   formatStatus: (status: string) => string;
   statusClass: (status: string) => string;
+  lang?: "th" | "en";
 };
 
 export default function MasterView({
@@ -39,17 +40,23 @@ export default function MasterView({
   onEditPacket,
   onTogglePacketActive,
   formatStatus,
-  statusClass
+  statusClass,
+  lang = "th"
 }: MasterViewProps) {
+  const isEn = lang === "en";
   return (
     <section className="view-section">
       <div className="glass-card">
         <div className="subnav">
-          {[
+          {(isEn ? [
+            ["summary", "1. All Data (Log)"],
+            ["pivot", "2. Data Analysis (Pivot)"],
+            ["products", "3. Package Setup (Product DB)"]
+          ] : [
             ["summary", "1. ข้อมูลทั้งหมด (Log)"],
             ["pivot", "2. วิเคราะห์ข้อมูล (Pivot)"],
             ["products", "3. ตั้งค่าแพ็กเกจ (Product DB)"]
-          ].map(([key, label]) => (
+          ]).map(([key, label]) => (
             <button
               className={masterView === key ? "subnav-button active" : "subnav-button"}
               key={key}
@@ -76,14 +83,14 @@ export default function MasterView({
                 <thead className="thead-black">
                   <tr>
                     <th>ID / Booking</th>
-                    <th>วันที่ / รอบ</th>
+                    <th>{isEn ? "Date / Slot" : "วันที่ / รอบ"}</th>
                     <th>Packet / Agent</th>
-                    <th>โรงแรม</th>
+                    <th>{isEn ? "Hotel" : "โรงแรม"}</th>
                     <th className="center">Pax</th>
                     <th className="center">Join</th>
-                    <th>คนขับ</th>
+                    <th>{isEn ? "Driver" : "คนขับ"}</th>
                     <th className="center">Status</th>
-                    <th>สตาฟ</th>
+                    <th>{isEn ? "Staff" : "สตาฟ"}</th>
                     <th>Note</th>
                   </tr>
                 </thead>
@@ -130,8 +137,8 @@ export default function MasterView({
                   onChange={(event) => onPivotGroupByChange(event.target.value as PivotGroupBy)}
                   value={pivotGroupBy}
                 >
-                  <option value="agent">Agency (เอเจ้น)</option>
-                  <option value="packet">Packet (แพ็กเกจ)</option>
+                  <option value="agent">{isEn ? "Agency" : "Agency (เอเจ้น)"}</option>
+                  <option value="packet">{isEn ? "Packet" : "Packet (แพ็กเกจ)"}</option>
                 </select>
               </label>
             </div>
@@ -164,10 +171,10 @@ export default function MasterView({
           <>
             <div className="section-header">
               <div>
-                <h2>ฐานข้อมูลแพ็กเกจ</h2>
+                <h2>{isEn ? "Package Database" : "ฐานข้อมูลแพ็กเกจ"}</h2>
               </div>
               <button className="primary-button" onClick={onAddPacket} type="button">
-                + เพิ่มแพ็กเกจ
+                {isEn ? "+ Add Package" : "+ เพิ่มแพ็กเกจ"}
               </button>
             </div>
             <div className="packet-grid">

@@ -15,6 +15,7 @@ type Props = {
   savingOrderId: number | null;
   onChangeLocalAdminNote: (orderId: number, value: string) => void;
   onSaveTransport: (order: OrderRecord, patch: { driverCode?: string; vehicleCode?: string; adminNote?: string }) => void;
+  lang?: "th" | "en";
 };
 
 export function TransportAssignTable({
@@ -28,8 +29,10 @@ export function TransportAssignTable({
   onToggleAssignSort,
   savingOrderId,
   onChangeLocalAdminNote,
-  onSaveTransport
+  onSaveTransport,
+  lang = "th"
 }: Props) {
+  const isEn = lang === "en";
   function sortIcon(field: "time" | "hotel" | "pax") {
     if (assignSortField !== field) return null;
     return assignSortDir === "asc" ? " ▲" : " ▼";
@@ -39,7 +42,7 @@ export function TransportAssignTable({
     <>
       <div className="toolbar muted">
         <label>
-          <span>วันที่</span>
+          <span>{isEn ? "Date" : "วันที่"}</span>
           <DatePicker value={transportDate} onChange={onSetTransportDate} style={{ fontSize: "13px", minWidth: "130px" }} />
         </label>
       </div>
@@ -49,18 +52,18 @@ export function TransportAssignTable({
           <thead className="thead-indigo">
             <tr>
               <th className={`sortable${assignSortField === "time" ? " sort-active" : ""}`} onClick={() => onToggleAssignSort("time")}>
-                รอบ{sortIcon("time")}
+                {isEn ? "Slot" : "รอบ"}{sortIcon("time")}
               </th>
               <th className={`sortable${assignSortField === "hotel" ? " sort-active" : ""}`} onClick={() => onToggleAssignSort("hotel")}>
-                โรงแรม{sortIcon("hotel")}
+                {isEn ? "Hotel" : "โรงแรม"}{sortIcon("hotel")}
               </th>
               <th className={`center sortable${assignSortField === "pax" ? " sort-active" : ""}`} onClick={() => onToggleAssignSort("pax")}>
                 Pax{sortIcon("pax")}
               </th>
-              <th>ลูกค้า</th>
-              <th>คนขับ</th>
-              <th>รถ</th>
-              <th>Admin Note</th>
+              <th>{isEn ? "Customer" : "ลูกค้า"}</th>
+              <th>{isEn ? "Driver" : "คนขับ"}</th>
+              <th>{isEn ? "Vehicle" : "รถ"}</th>
+              <th>{isEn ? "Admin Note" : "Admin Note"}</th>
             </tr>
           </thead>
           <tbody>
@@ -87,7 +90,7 @@ export function TransportAssignTable({
                         })
                       }
                     >
-                      <option value="">ยังไม่จัด</option>
+                    <option value="">{isEn ? "Unassigned" : "ยังไม่จัด"}</option>
                       {drivers.map((driver) => (
                         <option key={driver.id} value={driver.id}>
                           {driver.name}
@@ -107,7 +110,7 @@ export function TransportAssignTable({
                         })
                       }
                     >
-                      <option value="">ยังไม่จัด</option>
+                    <option value="">{isEn ? "Unassigned" : "ยังไม่จัด"}</option>
                       {vehicles
                         .filter((vehicle) => vehicle.active)
                         .map((vehicle) => (
@@ -122,7 +125,7 @@ export function TransportAssignTable({
                     <input
                       className="table-input"
                       disabled={disabled}
-                      placeholder="Note"
+                      placeholder={isEn ? "Note" : "Note"}
                       value={order.adminNote ?? ""}
                       onBlur={(event) =>
                         onSaveTransport(order, {

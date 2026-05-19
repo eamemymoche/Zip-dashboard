@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ALLOWED_ROLES_STAFF_WRITE } from "../../../lib/auth/role-guards";
-import { getRoleFromRequest, roleGuard } from "../../../lib/auth/server-session";
+import { auditData, requireRole } from "../../../lib/auth/server-session";
 import { createPrismaClient } from "../../../lib/prisma";
 
 async function getPrisma() {
@@ -8,9 +8,8 @@ async function getPrisma() {
 }
 
 export async function POST(request: NextRequest) {
-  const role = getRoleFromRequest(request);
-  const denied = roleGuard(role, ALLOWED_ROLES_STAFF_WRITE);
-  if (denied) return denied;
+  const auth = requireRole(request, ALLOWED_ROLES_STAFF_WRITE);
+  if ("response" in auth) return auth.response;
   let prisma: Awaited<ReturnType<typeof getPrisma>> | null = null;
   try {
     prisma = await getPrisma();
@@ -65,7 +64,7 @@ export async function POST(request: NextRequest) {
     });
 
     await prisma.auditLog.create({
-      data: {
+      data: auditData(auth.userId, {
         entityType: "StaffAssignment",
         entityId: booking.id,
         action: "staff.assigned",
@@ -73,7 +72,7 @@ export async function POST(request: NextRequest) {
           previousLinks.map((l: any) => ({ employeeCode: l.employee.code, name: l.employee.name }))
         ),
         afterJson: JSON.stringify(created)
-      }
+      })
     });
 
     const refreshedBooking = await prisma.booking.update({
@@ -89,9 +88,5 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Staff assignment error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
-  } finally {
-    if (prisma) {
-      await prisma.$disconnect();
-    }
   }
 }

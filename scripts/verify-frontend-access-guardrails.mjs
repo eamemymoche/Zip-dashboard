@@ -7,9 +7,9 @@ const baseUrl = env.ZIPLINE_BASE_URL ?? process.env.ZIPLINE_BASE_URL ?? "http://
 const sessionSecret = env.SESSION_SECRET ?? "dev-secret-change-in-production";
 
 function makeCookie(role) {
-  const payload = Buffer.from(`frontend-guard:${role}:${Date.now()}`, "utf8").toString("base64url");
+  const payload = Buffer.from(`frontend-guard:${role}:${Date.now()}:verify`, "utf8").toString("base64url");
   const sig = crypto.createHash("sha256").update(payload + sessionSecret).digest("hex").slice(0, 16);
-  return `zcc_session=${payload}.${sig}; zcc_role=${role}`;
+  return `zcc_session=${payload}.${sig}`;
 }
 
 async function hit(path, role) {

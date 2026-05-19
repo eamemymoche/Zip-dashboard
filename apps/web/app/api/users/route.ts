@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createHash } from "crypto";
 import { createPrismaClient } from "../../../lib/prisma";
 import { ALLOWED_ROLES_USER_ACCESS, defaultModuleAccessForRole, normalizeModuleAccess, type ModuleAccessMap, type UserRole } from "../../../lib/auth/role-guards";
-import { getRoleFromRequest, roleGuard } from "../../../lib/auth/server-session";
+import { auditData, getRoleFromRequest, hashPassword, requireRole, roleGuard } from "../../../lib/auth/server-session";
 
 async function getPrisma() {
   return createPrismaClient();
@@ -87,17 +86,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(DEMO_USERS_FALLBACK, { status: 200 });
     }
     return NextResponse.json({ error: "Failed to fetch users" }, { status: 500 });
-  } finally {
-    if (prisma) {
-      await prisma.$disconnect();
-    }
   }
 }
 
 export async function POST(request: NextRequest) {
-  const role = getRoleFromRequest(request);
-  const denied = roleGuard(role, ALLOWED_ROLES_USER_ACCESS);
-  if (denied) return denied;
+  const auth = requireRole(request, ALLOWED_ROLES_USER_ACCESS);
+  if ("response" in auth) return auth.response;
+  const role = auth.role;
   if (!canDeleteUser(role)) {
     return NextResponse.json({ error: "Only SUPERADMIN can create users" }, { status: 403 });
   }
@@ -128,7 +123,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Username or email already exists" }, { status: 409 });
     }
 
-    const passwordHash = createHash("sha256").update(password + (process.env.SESSION_SECRET ?? "dev-secret-change-in-production")).digest("hex");
+    const passwordHash = hashPassword(password);
 
     const user = await prisma.user.create({
       data: {
@@ -153,12 +148,12 @@ export async function POST(request: NextRequest) {
     });
 
     await prisma.auditLog.create({
-      data: {
+      data: auditData(auth.userId, {
         entityType: "User",
         entityId: user.id,
         action: "user.created",
         afterJson: JSON.stringify({ username: user.username, email: user.email, role: user.role })
-      }
+      })
     });
 
     return NextResponse.json({
@@ -176,17 +171,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "User schema is outdated. Apply latest migrations." }, { status: 503 });
     }
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
-  } finally {
-    if (prisma) {
-      await prisma.$disconnect();
-    }
   }
 }
 
 export async function PUT(request: NextRequest) {
-  const role = getRoleFromRequest(request);
-  const denied = roleGuard(role, ALLOWED_ROLES_USER_ACCESS);
-  if (denied) return denied;
+  const auth = requireRole(request, ALLOWED_ROLES_USER_ACCESS);
+  if ("response" in auth) return auth.response;
+  const role = auth.role;
 
   const body = await request.json();
   const { id, role: userRole, active, moduleAccess } = body;
@@ -233,13 +224,13 @@ export async function PUT(request: NextRequest) {
     });
 
     await prisma.auditLog.create({
-      data: {
+      data: auditData(auth.userId, {
         entityType: "User",
         entityId: id,
         action: "user.updated",
         beforeJson: JSON.stringify({ username: user.username, role: user.role, active: user.active, moduleAccessJson: user.moduleAccessJson }),
         afterJson: JSON.stringify({ username: updated.username, role: updated.role, active: updated.active, moduleAccessJson: updated.moduleAccessJson })
-      }
+      })
     });
 
     return NextResponse.json({
@@ -257,17 +248,13 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "User schema is outdated. Apply latest migrations." }, { status: 503 });
     }
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
-  } finally {
-    if (prisma) {
-      await prisma.$disconnect();
-    }
   }
 }
 
 export async function DELETE(request: NextRequest) {
-  const role = getRoleFromRequest(request);
-  const denied = roleGuard(role, ALLOWED_ROLES_USER_ACCESS);
-  if (denied) return denied;
+  const auth = requireRole(request, ALLOWED_ROLES_USER_ACCESS);
+  if ("response" in auth) return auth.response;
+  const role = auth.role;
   if (!canDeleteUser(role)) {
     return NextResponse.json({ error: "Only SUPERADMIN can delete users" }, { status: 403 });
   }
@@ -291,12 +278,12 @@ export async function DELETE(request: NextRequest) {
 
     await prisma.user.delete({ where: { id } });
     await prisma.auditLog.create({
-      data: {
+      data: auditData(auth.userId, {
         entityType: "User",
         entityId: id,
         action: "user.deleted",
         beforeJson: JSON.stringify({ username: existing.username, email: existing.email, role: existing.role })
-      }
+      })
     });
     return NextResponse.json({ success: true });
   } catch (error) {
@@ -304,9 +291,5 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "User schema is outdated. Apply latest migrations." }, { status: 503 });
     }
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
-  } finally {
-    if (prisma) {
-      await prisma.$disconnect();
-    }
   }
 }

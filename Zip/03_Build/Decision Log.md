@@ -1,6 +1,65 @@
 # Decision Log
 
-*Last updated: 2026-05-16*
+*Last updated: 2026-05-18*
+
+## 2026-05-18
+
+### Decision
+
+Add flexible read-only backup status API and improve readability for Accounting/Overview dashboards.
+
+### Context
+
+The user requested that backup be prepared more completely but not too rigid, because future data-entry flows, data additions, and edits will continue changing. The Accounting dashboard also needed stronger visual styling, and Thai text on the Overview cards/summary/slot/alert areas was too small.
+
+### Consequences
+
+- Added `GET /api/backup/status` as a guarded read-only backup scaffold.
+- Added `ALLOWED_ROLES_BACKUP_READ` for backup status access.
+- Backup UI now reads the status API when available and falls back gracefully when unavailable.
+- Backup design remains provider-neutral and data-model-flexible; restore execution is still intentionally not implemented.
+- Improved Accounting dashboard card/table styling in `apps/web/app/globals.css`.
+- Increased Overview card, agent summary, slot, and alert typography for Thai readability.
+
+## 2026-05-18
+
+### Decision
+
+Add a final `Backup & Recovery` dashboard module as a non-IT safety layer with plugin and overlap recovery concepts.
+
+### Context
+
+The user requested a complete backup design that appears as one more dashboard at the end of the customizable feature list. The goal is to make backup/recovery understandable for operators while leaving room for a future plugin-based backend implementation.
+
+### Consequences
+
+- Added board key `backup` to role/module access.
+- Added `apps/web/app/backup-view.tsx` with four user-facing modes: `Always-on Safety Net`, `Daily Snapshot`, `Plugin Vault`, and `Overlap Recovery`.
+- Added the sidebar item as the final module after `Master Ops`.
+- Access is limited to `SUPERADMIN`, `ADMIN`, `ACCOUNTING`, and `MANAGER`.
+- Added `Zip/03_Build/Backup Dashboard and Plugin Recovery Design.md` as the active design note for future agents.
+- Current implementation is a dashboard/control-surface design only. Real backup execution, restore, checksums, and plugin storage registry remain future backend work.
+
+## 2026-05-18
+
+### Decision
+
+Harden auth, password handling, role authority, CSRF/origin checks, and audit actor attribution for the production scaffold.
+
+### Context
+
+The security review found seven baseline gaps: default `SESSION_SECRET`, production dev fallback risk, weak password hashing, repeated route auth patterns, partial audit actor attribution, missing shared origin guard on mutation APIs, and lingering `zcc_role` cookie usage.
+
+### Consequences
+
+- `apps/web/lib/auth/server-session.ts` now owns session parsing/signing, production secret validation, local-only dev fallback gating, `requireRole()`, `originGuard()`, scrypt password hashing, legacy password verification, and `auditData()`.
+- Production runtime rejects missing/default/short `SESSION_SECRET` values when session signing or verification is attempted.
+- Dev auth fallback is blocked in production by `isDevAuthFallbackEnabled()`.
+- Login no longer sets `zcc_role`; logout/proxy no longer delete or depend on it. Role authority comes from signed `zcc_session` only.
+- New and changed passwords use `scrypt$<salt>$<hash>`. Legacy SHA-256 hashes still verify and are rehashed after successful DB login.
+- Write APIs now use shared `requireRole()` so role enforcement and trusted-origin checking stay consistent.
+- Audit writes now use `auditData()` so real DB users are stored as actors while local `dev-` users do not create fake actor references.
+- `npm run build` passes. Turbopack still reports the pre-existing dynamic filesystem trace warning from `apps/web/lib/prisma.ts`.
 
 ## 2026-05-13
 

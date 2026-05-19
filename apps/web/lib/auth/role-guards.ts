@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 export type UserRole = "SUPERADMIN" | "ADMIN" | "ACCOUNTING" | "MANAGER" | "STAFF" | "DRIVER";
-export type BoardKey = "overview" | "orderlist" | "transport" | "staffing" | "personnel" | "accounting" | "changelog" | "useraccess" | "master";
+export type BoardKey = "overview" | "orderlist" | "transport" | "staffing" | "personnel" | "accounting" | "changelog" | "useraccess" | "master" | "backup";
 export type BoardPermission = "view" | "edit";
 export type ModuleAccessMap = Partial<Record<BoardKey, BoardPermission>>;
 
@@ -14,6 +14,7 @@ export const ALLOWED_ROLES_PERSONNEL_READ: UserRole[] = ["SUPERADMIN", "ADMIN", 
 export const ALLOWED_ROLES_EMPLOYEE_WRITE: UserRole[] = ["SUPERADMIN", "ADMIN", "MANAGER"];
 export const ALLOWED_ROLES_PRODUCT_WRITE: UserRole[] = ["SUPERADMIN", "ADMIN", "ACCOUNTING", "MANAGER"];
 export const ALLOWED_ROLES_USER_ACCESS: UserRole[] = ["SUPERADMIN", "ADMIN"];
+export const ALLOWED_ROLES_BACKUP_READ: UserRole[] = ["SUPERADMIN", "ADMIN", "ACCOUNTING", "MANAGER"];
 
 export const MODULE_ACCESS: Record<string, UserRole[]> = {
   overview: ["SUPERADMIN", "ADMIN", "ACCOUNTING", "MANAGER", "STAFF", "DRIVER"],
@@ -25,9 +26,10 @@ export const MODULE_ACCESS: Record<string, UserRole[]> = {
   changelog: ["SUPERADMIN", "ADMIN"],
   useraccess: ["SUPERADMIN", "ADMIN"],
   master: ["SUPERADMIN", "ADMIN", "ACCOUNTING", "MANAGER"],
+  backup: ["SUPERADMIN", "ADMIN", "ACCOUNTING", "MANAGER"],
 };
 
-export const ALL_BOARD_KEYS: BoardKey[] = ["overview", "orderlist", "transport", "staffing", "personnel", "accounting", "changelog", "useraccess", "master"];
+export const ALL_BOARD_KEYS: BoardKey[] = ["overview", "orderlist", "transport", "staffing", "personnel", "accounting", "changelog", "useraccess", "master", "backup"];
 
 export const ALL_ROLES: UserRole[] = ["SUPERADMIN", "ADMIN", "ACCOUNTING", "MANAGER", "STAFF", "DRIVER"];
 

@@ -5,7 +5,7 @@ export type BookingStatus =
   | "CANCELLED"
   | "RESCHEDULED";
 
-export type EmployeeRole = "Staff" | "Driver";
+export type EmployeeRole = "Staff" | "Driver" | "Officer" | "Accounting";
 
 export type EmployeeRecord = {
   id: string;

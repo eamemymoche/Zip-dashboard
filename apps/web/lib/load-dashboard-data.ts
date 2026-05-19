@@ -32,8 +32,6 @@ export async function loadDashboardData(): Promise<DashboardSeed> {
       prisma.vehicle.findMany({ orderBy: { code: "asc" } })
     ]);
 
-    await prisma.$disconnect();
-
     return {
       timeSlots: fallback.timeSlots,
       employees: employees.length

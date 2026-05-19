@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ALLOWED_ROLES_PICKUP_WRITE } from "../../../lib/auth/role-guards";
-import { getRoleFromRequest, roleGuard } from "../../../lib/auth/server-session";
+import { auditData, requireRole } from "../../../lib/auth/server-session";
 import { createPrismaClient } from "../../../lib/prisma";
 
 async function getPrisma() {
@@ -8,9 +8,8 @@ async function getPrisma() {
 }
 
 export async function POST(request: NextRequest) {
-  const role = getRoleFromRequest(request);
-  const denied = roleGuard(role, ALLOWED_ROLES_PICKUP_WRITE);
-  if (denied) return denied;
+  const auth = requireRole(request, ALLOWED_ROLES_PICKUP_WRITE);
+  if ("response" in auth) return auth.response;
   let prisma: Awaited<ReturnType<typeof getPrisma>> | null = null;
   try {
     prisma = await getPrisma();
@@ -58,18 +57,18 @@ export async function POST(request: NextRequest) {
         bookingId: booking.id,
         status,
         note: note ?? null,
-        createdBy: null
+        createdBy: auth.userId.startsWith("dev-") ? null : auth.userId
       }
     });
 
     await prisma.auditLog.create({
-      data: {
+      data: auditData(auth.userId, {
         entityType: "PickupStatusEvent",
         entityId: event.id,
         action: "pickup.status_changed",
         beforeJson: JSON.stringify({ status: previousStatus }),
         afterJson: JSON.stringify({ status })
-      }
+      })
     });
 
     const refreshedBooking = await prisma.booking.update({
@@ -85,9 +84,5 @@ export async function POST(request: NextRequest) {
       { error: "Internal server error" },
       { status: 500 }
     );
-  } finally {
-    if (prisma) {
-      await prisma.$disconnect();
-    }
   }
 }

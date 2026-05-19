@@ -11,9 +11,9 @@
     "seed": "node prisma/seed.mjs"
   },
   "dependencies": {
-    "@prisma/client": "latest"
+    "@prisma/client": "^7.8.0"
   },
   "devDependencies": {
-    "prisma": "latest"
+    "prisma": "^7.8.0"
   }
 }

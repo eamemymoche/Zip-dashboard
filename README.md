@@ -120,8 +120,12 @@ npm run db:seed
 
 **Prerequisites for all DB commands:**
 - `DATABASE_URL` must be set — commands fail fast without it (no silent localhost fallback)
-- `SESSION_SECRET` must match the value used by the auth API (defaults to `dev-secret-change-in-production`)
+- `SESSION_SECRET` must match the value used by the auth API; production rejects missing/default/short values
 - Copy `.env.example` → `.env.local` and fill in your values before running DB commands
+
+**Optional PostgreSQL web-app tuning:**
+- `DATABASE_POOL_MAX` controls the max per-process PostgreSQL pool size (default `10`)
+- `DATABASE_POOL_IDLE_TIMEOUT_MS`, `DATABASE_POOL_CONNECTION_TIMEOUT_MS`, and `DATABASE_STATEMENT_TIMEOUT_MS` can be raised for slow networks or lowered to fail fast under load
 
 **Fail-fast behavior:**
 - `prisma.config.ts` now throws a clear error if `DATABASE_URL` is missing

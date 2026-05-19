@@ -1,5 +1,11 @@
 # Task Board
 
+## 2026-05-19 status refresh
+
+- Backup / auth / module-access / ERD notes have now been mirrored into active project docs.
+- `User Access`, `Change Log`, and `Backup & Recovery` are implemented surfaces, not future placeholders.
+- Current active follow-up is no longer the old Access/Audit board build-out. It is truth maintenance, accounting workflow review, and future backup execution design.
+
 ## Backlog
 
 - [ ] Optional later: split shared transport/order helper types if the file pressure still justifies it.
@@ -10,6 +16,12 @@
 - [ ] Build and maintain status truth in `Project Status Snapshot.md` and `Roadmap - Milestone Execution Plan.md`.
 
 ## Done
+
+- [x] **2026-05-19 Obsidian truth refresh:** Reconciled active project notes with current code reality around backup scaffolds, auth hardening, query indexes, and ERD communication assets.
+- [x] **2026-05-19 ERD communication pack:** Added `docs/erd.md`, infographic source `docs/erd-infographic.html`, and presentation PNG `docs/erd-infographic.png` for non-technical walkthroughs.
+- [x] **2026-05-18 Query index migration:** Added `20260518000001_add_query_indexes` migration to support higher-traffic dashboard/API reads.
+- [x] **2026-05-18 Backup scaffold:** Added final `Backup & Recovery` board, role/module access wiring, read-only `GET /api/backup/status`, and design notes for future plugin-based restore/checksum/overlap recovery work.
+- [x] **2026-05-18 Security hardening:** Centralized signed-session parsing, production `SESSION_SECRET` enforcement, shared `requireRole()`/origin guard, `scrypt` password hashing, legacy hash migration path, and shared `auditData()` actor attribution in `apps/web/lib/auth/server-session.ts`.
 
 - [x] **Task 25:** Added repeatable smoke verification script `scripts/task24-smoke.ps1` and npm command `npm run verify:task24` with non-zero exit on failure.
 - [x] **Task 26:** Added API guardrail verification script `scripts/task26-guardrails.ps1` and npm command `npm run verify:task26` covering role `403` and stale-token `409` responses.

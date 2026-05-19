@@ -1,0 +1,489 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Zipline Database ERD</title>
+    <style>
+      :root {
+        --bg: #f6f1e8;
+        --ink: #17324d;
+        --muted: #5d7288;
+        --line: #bed0df;
+        --card: rgba(255, 255, 255, 0.94);
+        --shadow: 0 20px 45px rgba(23, 50, 77, 0.12);
+        --people: #fff2cf;
+        --ops: #dff5e8;
+        --transport: #dbeafe;
+        --tracking: #f8dff3;
+        --audit: #ffe1d6;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Segoe UI", Tahoma, sans-serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, rgba(255, 216, 145, 0.5), transparent 26%),
+          radial-gradient(circle at top right, rgba(116, 180, 255, 0.28), transparent 24%),
+          linear-gradient(180deg, #fffaf2 0%, var(--bg) 52%, #efe7da 100%);
+      }
+
+      .canvas {
+        width: 1800px;
+        min-height: 1220px;
+        margin: 0 auto;
+        padding: 44px 48px 48px;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .hero {
+        display: grid;
+        grid-template-columns: 1.2fr 0.8fr;
+        gap: 24px;
+        align-items: start;
+        margin-bottom: 24px;
+      }
+
+      .headline {
+        background: linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.76));
+        border: 1px solid rgba(255, 255, 255, 0.8);
+        box-shadow: var(--shadow);
+        border-radius: 28px;
+        padding: 28px 32px;
+        backdrop-filter: blur(10px);
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        padding: 8px 14px;
+        border-radius: 999px;
+        background: #17324d;
+        color: #fff;
+        font-size: 16px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+      }
+
+      h1 {
+        margin: 18px 0 10px;
+        font-size: 44px;
+        line-height: 1.05;
+      }
+
+      .subtitle {
+        margin: 0;
+        font-size: 21px;
+        line-height: 1.45;
+        color: var(--muted);
+      }
+
+      .legend {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        align-content: start;
+      }
+
+      .legend-card {
+        background: var(--card);
+        border: 1px solid rgba(23, 50, 77, 0.08);
+        border-radius: 24px;
+        padding: 18px 20px;
+        box-shadow: var(--shadow);
+      }
+
+      .legend-title {
+        font-size: 18px;
+        font-weight: 800;
+        margin-bottom: 10px;
+      }
+
+      .legend-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: var(--muted);
+        font-size: 16px;
+        margin: 8px 0;
+      }
+
+      .swatch {
+        width: 16px;
+        height: 16px;
+        border-radius: 999px;
+        border: 1px solid rgba(23, 50, 77, 0.18);
+      }
+
+      .swatch.people { background: var(--people); }
+      .swatch.ops { background: var(--ops); }
+      .swatch.transport { background: var(--transport); }
+      .swatch.tracking { background: var(--tracking); }
+      .swatch.audit { background: var(--audit); }
+
+      .board {
+        position: relative;
+        height: 1020px;
+        border-radius: 36px;
+        background: linear-gradient(180deg, rgba(255,255,255,0.72), rgba(255,255,255,0.44));
+        border: 1px solid rgba(255,255,255,0.72);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.65), var(--shadow);
+      }
+
+      svg.links {
+        position: absolute;
+        inset: 0;
+        z-index: 1;
+      }
+
+      .zone-label {
+        position: absolute;
+        font-size: 17px;
+        font-weight: 800;
+        color: rgba(23, 50, 77, 0.55);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        z-index: 2;
+      }
+
+      .card {
+        position: absolute;
+        z-index: 3;
+        width: 320px;
+        background: var(--card);
+        border-radius: 26px;
+        border: 1px solid rgba(23, 50, 77, 0.08);
+        box-shadow: var(--shadow);
+        overflow: hidden;
+      }
+
+      .card.people { background: linear-gradient(180deg, rgba(255,242,207,0.98), rgba(255,255,255,0.96)); }
+      .card.ops { background: linear-gradient(180deg, rgba(223,245,232,0.98), rgba(255,255,255,0.96)); }
+      .card.transport { background: linear-gradient(180deg, rgba(219,234,254,0.98), rgba(255,255,255,0.96)); }
+      .card.tracking { background: linear-gradient(180deg, rgba(248,223,243,0.98), rgba(255,255,255,0.96)); }
+      .card.audit { background: linear-gradient(180deg, rgba(255,225,214,0.98), rgba(255,255,255,0.96)); }
+
+      .card-head {
+        padding: 18px 20px 8px;
+      }
+
+      .card-title {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 12px;
+      }
+
+      .card-title strong {
+        font-size: 27px;
+      }
+
+      .tag {
+        font-size: 14px;
+        font-weight: 800;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: rgba(23, 50, 77, 0.08);
+      }
+
+      .card-sub {
+        margin-top: 8px;
+        font-size: 16px;
+        line-height: 1.4;
+        color: var(--muted);
+      }
+
+      .fields {
+        padding: 8px 20px 18px;
+        border-top: 1px solid rgba(23, 50, 77, 0.08);
+      }
+
+      .fields strong {
+        display: block;
+        font-size: 15px;
+        margin-bottom: 8px;
+      }
+
+      .fields ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: grid;
+        gap: 7px;
+      }
+
+      .fields li {
+        font-size: 15px;
+        color: #294763;
+        display: flex;
+        gap: 8px;
+        align-items: baseline;
+      }
+
+      .bullet {
+        width: 7px;
+        height: 7px;
+        border-radius: 999px;
+        background: currentColor;
+        opacity: 0.45;
+        margin-top: 8px;
+        flex: 0 0 auto;
+      }
+
+      .relation-note {
+        position: absolute;
+        z-index: 4;
+        padding: 10px 14px;
+        border-radius: 16px;
+        background: rgba(255,255,255,0.88);
+        border: 1px solid rgba(23, 50, 77, 0.1);
+        font-size: 15px;
+        font-weight: 700;
+        color: #31506b;
+        box-shadow: 0 12px 24px rgba(23, 50, 77, 0.09);
+      }
+
+      .footer {
+        margin-top: 16px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        color: var(--muted);
+        font-size: 15px;
+      }
+
+      .footer strong {
+        color: var(--ink);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="canvas">
+      <section class="hero">
+        <div class="headline">
+          <div class="eyebrow">ZIPLINE COMMAND CENTER</div>
+          <h1>ภาพรวมฐานข้อมูลแบบอ่านง่าย</h1>
+          <p class="subtitle">
+            เวอร์ชันนี้เรียบเรียงให้คน non-IT เห็นภาพว่า “ข้อมูลลูกค้าเริ่มจากไหน,
+            ถูกจัดรถอย่างไร, มีพนักงานคนไหนเกี่ยวข้อง, และระบบบันทึกประวัติอะไรไว้บ้าง”
+          </p>
+        </div>
+        <div class="legend">
+          <div class="legend-card">
+            <div class="legend-title">สีแต่ละกลุ่มหมายถึงอะไร</div>
+            <div class="legend-row"><span class="swatch people"></span> คนและสิทธิ์การใช้งาน</div>
+            <div class="legend-row"><span class="swatch ops"></span> ออเดอร์และแพ็กเกจบริการ</div>
+            <div class="legend-row"><span class="swatch transport"></span> การจัดรถและคนขับ</div>
+            <div class="legend-row"><span class="swatch tracking"></span> การติดตามสถานะหน้างาน</div>
+            <div class="legend-row"><span class="swatch audit"></span> ประวัติการแก้ไขย้อนหลัง</div>
+          </div>
+          <div class="legend-card">
+            <div class="legend-title">วิธีอ่านเส้นเชื่อม</div>
+            <div class="legend-row">เส้นจากซ้ายไปขวา: ตารางต้นทางส่งข้อมูลไปอีกตาราง</div>
+            <div class="legend-row">คำว่า “1 booking : 1 transport” หมายถึง 1 งานมีการจัดรถได้สูงสุด 1 รายการ</div>
+            <div class="legend-row">คำว่า “หลายต่อหลาย” คือใช้ตารางกลางมาช่วยเชื่อมข้อมูล</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="board">
+        <div class="zone-label" style="left: 44px; top: 20px;">People & Access</div>
+        <div class="zone-label" style="left: 548px; top: 20px;">Core Order Flow</div>
+        <div class="zone-label" style="left: 1044px; top: 20px;">Transport & Tracking</div>
+        <div class="zone-label" style="left: 1470px; top: 20px;">History</div>
+
+        <svg class="links" viewBox="0 0 1704 1020" preserveAspectRatio="none" aria-hidden="true">
+          <defs>
+            <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+              <path d="M0,0 L10,5 L0,10 z" fill="#5f7f9d"></path>
+            </marker>
+          </defs>
+
+          <path d="M344 196 C 430 196, 462 250, 548 250" fill="none" stroke="#5f7f9d" stroke-width="4" stroke-linecap="round" marker-end="url(#arrow)" />
+          <path d="M868 250 C 946 250, 966 250, 1042 250" fill="none" stroke="#5f7f9d" stroke-width="4" stroke-linecap="round" marker-end="url(#arrow)" />
+          <path d="M1208 250 C 1292 250, 1318 250, 1400 250" fill="none" stroke="#5f7f9d" stroke-width="4" stroke-linecap="round" marker-end="url(#arrow)" />
+          <path d="M868 250 C 964 250, 1008 490, 1042 490" fill="none" stroke="#5f7f9d" stroke-width="4" stroke-linecap="round" marker-end="url(#arrow)" />
+          <path d="M868 250 C 962 250, 1004 740, 1042 740" fill="none" stroke="#5f7f9d" stroke-width="4" stroke-linecap="round" marker-end="url(#arrow)" />
+          <path d="M344 512 C 458 512, 468 800, 548 800" fill="none" stroke="#5f7f9d" stroke-width="4" stroke-linecap="round" marker-end="url(#arrow)" />
+          <path d="M868 800 C 954 800, 972 800, 1042 800" fill="none" stroke="#5f7f9d" stroke-width="4" stroke-linecap="round" marker-end="url(#arrow)" />
+          <path d="M1400 250 C 1492 250, 1510 250, 1592 250" fill="none" stroke="#5f7f9d" stroke-width="4" stroke-linecap="round" marker-end="url(#arrow)" />
+        </svg>
+
+        <article class="card people" style="left: 44px; top: 68px;">
+          <div class="card-head">
+            <div class="card-title">
+              <strong>User</strong>
+              <span class="tag">ผู้ใช้ระบบ</span>
+            </div>
+            <div class="card-sub">เก็บบัญชีผู้ใช้งาน สิทธิ์ และสถานะการเข้าใช้ระบบ</div>
+          </div>
+          <div class="fields">
+            <strong>ฟิลด์สำคัญ</strong>
+            <ul>
+              <li><span class="bullet"></span> `username`, `email`, `displayName`</li>
+              <li><span class="bullet"></span> `role`, `active`</li>
+              <li><span class="bullet"></span> `moduleAccessJson` สำหรับสิทธิ์รายโมดูล</li>
+            </ul>
+          </div>
+        </article>
+
+        <article class="card people" style="left: 44px; top: 384px;">
+          <div class="card-head">
+            <div class="card-title">
+              <strong>Employee</strong>
+              <span class="tag">พนักงานจริง</span>
+            </div>
+            <div class="card-sub">ใช้กับคนขับและสตาฟที่ลงงานภาคสนาม</div>
+          </div>
+          <div class="fields">
+            <strong>ฟิลด์สำคัญ</strong>
+            <ul>
+              <li><span class="bullet"></span> `code`, `name`, `nickname`</li>
+              <li><span class="bullet"></span> `role`, `phone`, `active`</li>
+              <li><span class="bullet"></span> `startDate`, `photo`</li>
+            </ul>
+          </div>
+        </article>
+
+        <article class="card ops" style="left: 548px; top: 68px;">
+          <div class="card-head">
+            <div class="card-title">
+              <strong>Booking</strong>
+              <span class="tag">หัวใจของงาน</span>
+            </div>
+            <div class="card-sub">ข้อมูลลูกค้า วันที่บริการ โรงแรม จำนวนคน และสถานะล่าสุด</div>
+          </div>
+          <div class="fields">
+            <strong>ฟิลด์สำคัญ</strong>
+            <ul>
+              <li><span class="bullet"></span> `bookingNumber`, `serviceDate`, `timeSlot`</li>
+              <li><span class="bullet"></span> `customerName`, `hotel`, `pickupPax`</li>
+              <li><span class="bullet"></span> `status`, `createdById`, `productPackageId`</li>
+            </ul>
+          </div>
+        </article>
+
+        <article class="card ops" style="left: 548px; top: 618px;">
+          <div class="card-head">
+            <div class="card-title">
+              <strong>ProductPackage</strong>
+              <span class="tag">ประเภทแพ็กเกจ</span>
+            </div>
+            <div class="card-sub">ระบุว่าบุ๊กกิ้งนี้ขายเป็นแพ็กเกจอะไร</div>
+          </div>
+          <div class="fields">
+            <strong>ฟิลด์สำคัญ</strong>
+            <ul>
+              <li><span class="bullet"></span> `name`, `detail`</li>
+              <li><span class="bullet"></span> `active` เปิด/ปิดการใช้งาน</li>
+            </ul>
+          </div>
+        </article>
+
+        <article class="card transport" style="left: 1042px; top: 68px;">
+          <div class="card-head">
+            <div class="card-title">
+              <strong>TransportAssignment</strong>
+              <span class="tag">การจัดรถ</span>
+            </div>
+            <div class="card-sub">บอกว่า booking นี้มอบหมายให้คนขับคนไหน ใช้รถคันใด</div>
+          </div>
+          <div class="fields">
+            <strong>ฟิลด์สำคัญ</strong>
+            <ul>
+              <li><span class="bullet"></span> `bookingId` เชื่อมกับงาน</li>
+              <li><span class="bullet"></span> `driverId`, `vehicleId`</li>
+              <li><span class="bullet"></span> `assignedAt`, `assignedBy`</li>
+            </ul>
+          </div>
+        </article>
+
+        <article class="card transport" style="left: 1400px; top: 68px;">
+          <div class="card-head">
+            <div class="card-title">
+              <strong>Vehicle</strong>
+              <span class="tag">รถ</span>
+            </div>
+            <div class="card-sub">รายการรถที่พร้อมใช้งานในระบบ</div>
+          </div>
+          <div class="fields">
+            <strong>ฟิลด์สำคัญ</strong>
+            <ul>
+              <li><span class="bullet"></span> `code`, `type`, `capacity`</li>
+              <li><span class="bullet"></span> `active`, `notes`</li>
+            </ul>
+          </div>
+        </article>
+
+        <article class="card tracking" style="left: 1042px; top: 398px;">
+          <div class="card-head">
+            <div class="card-title">
+              <strong>PickupStatusEvent</strong>
+              <span class="tag">ไทม์ไลน์สถานะ</span>
+            </div>
+            <div class="card-sub">เก็บเหตุการณ์เปลี่ยนสถานะของ booking เช่น รอรับ, ขึ้นรถแล้ว, no-show</div>
+          </div>
+          <div class="fields">
+            <strong>ฟิลด์สำคัญ</strong>
+            <ul>
+              <li><span class="bullet"></span> `bookingId`, `status`</li>
+              <li><span class="bullet"></span> `note`, `createdAt`</li>
+              <li><span class="bullet"></span> `createdBy` เป็นข้อความ ยังไม่ผูก FK</li>
+            </ul>
+          </div>
+        </article>
+
+        <article class="card tracking" style="left: 1042px; top: 648px;">
+          <div class="card-head">
+            <div class="card-title">
+              <strong>StaffAssignment</strong>
+              <span class="tag">ตารางกลางสตาฟ</span>
+            </div>
+            <div class="card-sub">ใช้เชื่อม “1 งาน” กับ “พนักงานหลายคน” และพนักงาน 1 คนก็ลงได้หลายงาน</div>
+          </div>
+          <div class="fields">
+            <strong>ฟิลด์สำคัญ</strong>
+            <ul>
+              <li><span class="bullet"></span> `bookingId`, `employeeId`</li>
+              <li><span class="bullet"></span> มี unique คู่เพื่อกันซ้ำ</li>
+            </ul>
+          </div>
+        </article>
+
+        <article class="card audit" style="left: 1400px; top: 648px;">
+          <div class="card-head">
+            <div class="card-title">
+              <strong>AuditLog</strong>
+              <span class="tag">ประวัติย้อนหลัง</span>
+            </div>
+            <div class="card-sub">บอกว่าใครแก้ข้อมูลอะไร เมื่อไร และก่อน-หลังเปลี่ยนเป็นอย่างไร</div>
+          </div>
+          <div class="fields">
+            <strong>ฟิลด์สำคัญ</strong>
+            <ul>
+              <li><span class="bullet"></span> `actorId`, `entityType`, `entityId`</li>
+              <li><span class="bullet"></span> `action`, `beforeJson`, `afterJson`</li>
+            </ul>
+          </div>
+        </article>
+
+        <div class="relation-note" style="left: 392px; top: 170px;">ผู้ใช้ 1 คนสร้าง booking ได้หลายรายการ</div>
+        <div class="relation-note" style="left: 904px; top: 205px;">1 booking : 1 transport assignment (สูงสุด)</div>
+        <div class="relation-note" style="left: 1290px; top: 205px;">รถ 1 คันถูกผูกกับงานได้หลายครั้ง</div>
+        <div class="relation-note" style="left: 930px; top: 448px;">booking 1 งานมี event สถานะได้หลายรายการ</div>
+        <div class="relation-note" style="left: 886px; top: 758px;">booking และ employee เชื่อมกันผ่านตารางกลาง</div>
+        <div class="relation-note" style="left: 338px; top: 744px;">แพ็กเกจ 1 แบบถูกใช้ซ้ำในหลาย booking</div>
+      </section>
+
+      <div class="footer">
+        <div><strong>Source:</strong> `packages/db/prisma/schema.prisma` + migrations ล่าสุด</div>
+        <div><strong>หมายเหตุ:</strong> `assignedBy` และ `createdBy` บางจุดยังเป็นข้อความ ไม่ใช่ foreign key</div>
+      </div>
+    </div>
+  </body>
+</html>

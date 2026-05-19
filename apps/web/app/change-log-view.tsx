@@ -17,13 +17,13 @@ type AuditLogItem = {
   afterSummary: string | null;
 };
 
-const TABS: { key: Tab; label: string }[] = [
-  { key: "all", label: "ทั้งหมด" },
-  { key: "orders", label: "ออเดอร์" },
-  { key: "transport", label: "งานจัดรถ" },
-  { key: "staffing", label: "งานสตาฟ" },
-  { key: "personnel", label: "บุคลากร" },
-  { key: "users", label: "ผู้ใช้" }
+const TABS: { key: Tab; th: string; en: string }[] = [
+  { key: "all", th: "ทั้งหมด", en: "All" },
+  { key: "orders", th: "ออเดอร์", en: "Orders" },
+  { key: "transport", th: "งานจัดรถ", en: "Transport" },
+  { key: "staffing", th: "งาน Staff", en: "Staff" },
+  { key: "personnel", th: "บุคลากร", en: "Personnel" },
+  { key: "users", th: "ผู้ใช้", en: "Users" }
 ];
 
 const DOMAIN_COLORS: Record<string, { bg: string; text: string }> = {
@@ -36,7 +36,8 @@ const DOMAIN_COLORS: Record<string, { bg: string; text: string }> = {
 
 const PAGE_SIZE = 20;
 
-export function ChangeLogView() {
+export function ChangeLogView({ lang = "th" }: { lang?: "th" | "en" }) {
+  const isEn = lang === "en";
   const todayIso = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Bangkok" })).toISOString().slice(0, 10);
   const [activeTab, setActiveTab] = useState<Tab>("all");
   const [search, setSearch] = useState("");
@@ -77,8 +78,8 @@ export function ChangeLogView() {
       <div className="glass-card changelog-card">
         <div className="section-header" style={{ marginBottom: 12 }}>
           <div>
-            <h2>บันทึกการเปลี่ยนแปลง</h2>
-            <p>ตรวจสอบประวัติการแก้ไขแยกตามบอร์ด</p>
+            <h2>{isEn ? "Changelog" : "บันทึกการเปลี่ยนแปลง"}</h2>
+            <p>{isEn ? "Review edit history by board and domain." : "ตรวจสอบประวัติการแก้ไขแยกตามบอร์ด"}</p>
           </div>
         </div>
 
@@ -90,7 +91,7 @@ export function ChangeLogView() {
               type="button"
               onClick={() => setActiveTab(tab.key)}
             >
-              {tab.label}
+              {isEn ? tab.en : tab.th}
             </button>
           ))}
         </div>
@@ -100,30 +101,30 @@ export function ChangeLogView() {
             className="changelog-input"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="ค้นหา entityId / action / ก่อนแก้ไข / หลังแก้ไข"
+            placeholder={isEn ? "Search entityId / action / before / after" : "ค้นหา entityId / action / ก่อนแก้ไข / หลังแก้ไข"}
           />
           <DatePicker value={fromDate} onChange={setFromDate} style={{ minWidth: 132 }} />
           <DatePicker value={toDate} onChange={setToDate} style={{ minWidth: 132 }} />
-          <button type="button" className="primary-button" onClick={() => fetchLogs(activeTab, search, fromDate, toDate, 1)}>ค้นหา</button>
+          <button type="button" className="primary-button" onClick={() => fetchLogs(activeTab, search, fromDate, toDate, 1)}>{isEn ? "Search" : "ค้นหา"}</button>
         </div>
 
         <div className="changelog-table-shell">
           <table className="changelog-table">
             <thead>
               <tr>
-                <th>เวลา</th>
-                <th>ผู้กระทำ</th>
-                <th>โดเมน</th>
-                <th>การกระทำ</th>
+                <th>{isEn ? "Time" : "เวลา"}</th>
+                <th>{isEn ? "Actor" : "ผู้กระทำ"}</th>
+                <th>{isEn ? "Domain" : "โดเมน"}</th>
+                <th>{isEn ? "Action" : "การกระทำ"}</th>
                 <th>Entity</th>
-                <th>ก่อนแก้ไข</th>
-                <th>หลังแก้ไข</th>
+                <th>{isEn ? "Before" : "ก่อนแก้ไข"}</th>
+                <th>{isEn ? "After" : "หลังแก้ไข"}</th>
               </tr>
             </thead>
             <tbody>
               {items.length === 0 ? (
                 <tr>
-                  <td colSpan={7} style={{ padding: "24px 12px", textAlign: "center", color: "var(--muted)" }}>ไม่พบรายการ</td>
+                  <td colSpan={7} style={{ padding: "24px 12px", textAlign: "center", color: "var(--muted)" }}>{isEn ? "No records found" : "ไม่พบรายการ"}</td>
                 </tr>
               ) : items.map((item, idx) => {
                 const dc = DOMAIN_COLORS[item.domain] ?? { bg: "#e2e8f0", text: "#334155" };
@@ -149,9 +150,9 @@ export function ChangeLogView() {
 
         {pageCount > 1 ? (
           <div style={{ display: "flex", justifyContent: "center", gap: 8, marginTop: 12 }}>
-            <button type="button" onClick={() => fetchLogs(activeTab, search, fromDate, toDate, Math.max(1, page - 1))}>ก่อนหน้า</button>
+            <button type="button" onClick={() => fetchLogs(activeTab, search, fromDate, toDate, Math.max(1, page - 1))}>{isEn ? "Previous" : "ก่อนหน้า"}</button>
             <span style={{ color: "#334155", fontSize: 13, alignSelf: "center" }}>{page} / {pageCount}</span>
-            <button type="button" onClick={() => fetchLogs(activeTab, search, fromDate, toDate, Math.min(pageCount, page + 1))}>ถัดไป</button>
+            <button type="button" onClick={() => fetchLogs(activeTab, search, fromDate, toDate, Math.min(pageCount, page + 1))}>{isEn ? "Next" : "ถัดไป"}</button>
           </div>
         ) : null}
       </div>

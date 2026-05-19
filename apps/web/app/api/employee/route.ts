@@ -1,16 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ALLOWED_ROLES_EMPLOYEE_WRITE } from "../../../lib/auth/role-guards";
-import { getRoleFromRequest, roleGuard } from "../../../lib/auth/server-session";
+import { auditData, requireRole } from "../../../lib/auth/server-session";
 import { createPrismaClient } from "../../../lib/prisma";
 
-function mapEmployeeRole(role: string): "STAFF" | "DRIVER" {
-  return role === "Driver" ? "DRIVER" : "STAFF";
+function mapEmployeeRole(role: string): "STAFF" | "DRIVER" | "MANAGER" | "ADMIN" {
+  if (role === "Driver") return "DRIVER";
+  if (role === "Officer") return "MANAGER";
+  if (role === "Accounting") return "ADMIN";
+  return "STAFF";
 }
 
 export async function POST(request: NextRequest) {
-  const role = getRoleFromRequest(request);
-  const denied = roleGuard(role, ALLOWED_ROLES_EMPLOYEE_WRITE);
-  if (denied) return denied;
+  const auth = requireRole(request, ALLOWED_ROLES_EMPLOYEE_WRITE);
+  if ("response" in auth) return auth.response;
 
   let prisma;
   try {
@@ -46,11 +48,20 @@ export async function POST(request: NextRequest) {
       }
     });
 
+    await prisma.auditLog.create({
+      data: auditData(auth.userId, {
+        entityType: "Employee",
+        entityId: created.id,
+        action: "employee.created",
+        afterJson: JSON.stringify({ code: created.code, name: created.name, role: created.role })
+      })
+    });
+
     return NextResponse.json({
       id: created.code,
       name: created.name,
       nickname: created.nickname ?? created.name.split(" ")[0],
-      role: created.role === "DRIVER" ? "Driver" : "Staff",
+      role: created.role === "DRIVER" ? "Driver" : created.role === "MANAGER" ? "Officer" : created.role === "ADMIN" ? "Accounting" : "Staff",
       phone: created.phone ?? "",
       phone2: created.phone2 ?? "",
       startDate: created.startDate ? created.startDate.toISOString().slice(0, 10) : "",
@@ -59,15 +70,12 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Employee create error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
-  } finally {
-    await prisma.$disconnect();
   }
 }
 
 export async function PUT(request: NextRequest) {
-  const role = getRoleFromRequest(request);
-  const denied = roleGuard(role, ALLOWED_ROLES_EMPLOYEE_WRITE);
-  if (denied) return denied;
+  const auth = requireRole(request, ALLOWED_ROLES_EMPLOYEE_WRITE);
+  if ("response" in auth) return auth.response;
 
   let prisma;
   try {
@@ -102,11 +110,21 @@ export async function PUT(request: NextRequest) {
       }
     });
 
+    await prisma.auditLog.create({
+      data: auditData(auth.userId, {
+        entityType: "Employee",
+        entityId: updated.id,
+        action: "employee.updated",
+        beforeJson: JSON.stringify({ code: existing.code, name: existing.name, role: existing.role, active: existing.active }),
+        afterJson: JSON.stringify({ code: updated.code, name: updated.name, role: updated.role, active: updated.active })
+      })
+    });
+
     return NextResponse.json({
       id: updated.code,
       name: updated.name,
       nickname: updated.nickname ?? updated.name.split(" ")[0],
-      role: updated.role === "DRIVER" ? "Driver" : "Staff",
+      role: updated.role === "DRIVER" ? "Driver" : updated.role === "MANAGER" ? "Officer" : updated.role === "ADMIN" ? "Accounting" : "Staff",
       phone: updated.phone ?? "",
       phone2: updated.phone2 ?? "",
       startDate: updated.startDate ? updated.startDate.toISOString().slice(0, 10) : "",
@@ -115,7 +133,5 @@ export async function PUT(request: NextRequest) {
   } catch (error) {
     console.error("Employee update error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
-  } finally {
-    await prisma.$disconnect();
   }
 }

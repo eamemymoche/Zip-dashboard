@@ -130,9 +130,5 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Database unavailable" }, { status: 503 });
     }
     return NextResponse.json({ error: "Failed to fetch audit log" }, { status: 500 });
-  } finally {
-    if (prisma) {
-      await prisma.$disconnect();
-    }
   }
 }

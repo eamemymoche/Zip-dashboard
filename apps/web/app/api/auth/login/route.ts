@@ -1,15 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createHash } from "crypto";
 import { createPrismaClient } from "../../../../lib/prisma";
 import { defaultModuleAccessForRole, normalizeModuleAccess, type ModuleAccessMap, type UserRole } from "../../../../lib/auth/role-guards";
+import { hashPassword, hasTrustedOrigin, isDevAuthFallbackEnabled, makeSessionToken, parseSignedSessionToken, passwordNeedsRehash, verifyPassword } from "../../../../lib/auth/server-session";
 
 async function getPrisma() {
   return createPrismaClient();
 }
 
 const SESSION_COOKIE = "zcc_session";
-const SESSION_ROLE_COOKIE = "zcc_role";
-const SESSION_SECRET = process.env.SESSION_SECRET ?? "dev-secret-change-in-production";
 const LOGIN_RATE_LIMIT = 40;
 const LOGIN_WINDOW_MS = 60_000;
 const LOCK_LIMIT = 5;
@@ -36,34 +34,6 @@ function parseModuleAccess(raw: string | null | undefined, role: UserRole): Modu
   }
 }
 
-function hashPassword(password: string): string {
-  return createHash("sha256").update(password + SESSION_SECRET).digest("hex");
-}
-
-function hashUserAgent(userAgent: string | null): string {
-  return createHash("sha256").update((userAgent ?? "unknown") + SESSION_SECRET).digest("hex").slice(0, 12);
-}
-
-function makeSessionToken(userId: string, role: string, userAgent: string | null): string {
-  const payload = Buffer.from(`${userId}:${role}:${Date.now()}:${hashUserAgent(userAgent)}`).toString("base64url");
-  const sig = createHash("sha256").update(payload + SESSION_SECRET).digest("hex").slice(0, 16);
-  return `${payload}.${sig}`;
-}
-
-function parseSessionToken(token: string, userAgent: string | null): { userId: string; role: string; ts: number } | null {
-  try {
-    const [payload, sig] = token.split(".");
-    const expectedSig = createHash("sha256").update(payload + SESSION_SECRET).digest("hex").slice(0, 16);
-    if (sig !== expectedSig) return null;
-    const decoded = Buffer.from(payload, "base64url").toString("utf8");
-    const [userId, role, ts, uaHash] = decoded.split(":");
-    if (uaHash !== hashUserAgent(userAgent)) return null;
-    return { userId, role, ts: parseInt(ts, 10) };
-  } catch {
-    return null;
-  }
-}
-
 function getClientIp(request: NextRequest): string {
   const forwarded = request.headers.get("x-forwarded-for");
   if (forwarded) return forwarded.split(",")[0]?.trim() ?? "unknown";
@@ -78,18 +48,6 @@ function createSecureResponse(body: unknown, init?: ResponseInit) {
   response.headers.set("Referrer-Policy", "same-origin");
   response.headers.set("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'; base-uri 'none'");
   return response;
-}
-
-function hasTrustedOrigin(request: NextRequest): boolean {
-  const origin = request.headers.get("origin");
-  const host = request.headers.get("host");
-  if (!origin || !host) return true;
-  try {
-    const parsed = new URL(origin);
-    return parsed.host === host;
-  } catch {
-    return false;
-  }
 }
 
 function sanitizeIdentifier(value: unknown): string {
@@ -163,14 +121,14 @@ async function findDatabaseUser(identifier: string) {
       active: true
     }
   });
-  return { prisma, user };
+  return user;
 }
 
 function findDevUser(identifier: string, password: string) {
   return DEV_AUTH_USERS.find((user) => (user.username === identifier || user.email === identifier) && user.password === password);
 }
 
-function setAuthCookies(response: NextResponse, token: string, role: string) {
+function setAuthCookies(response: NextResponse, token: string) {
   const cookieOptions = {
     httpOnly: true,
     sameSite: "strict" as const,
@@ -179,7 +137,6 @@ function setAuthCookies(response: NextResponse, token: string, role: string) {
     maxAge: 60 * 60 * 8
   };
   response.cookies.set(SESSION_COOKIE, token, cookieOptions);
-  response.cookies.set(SESSION_ROLE_COOKIE, role, cookieOptions);
 }
 
 export async function POST(request: NextRequest) {
@@ -215,32 +172,32 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { prisma, user } = await findDatabaseUser(identifier);
-    try {
-      if (user && user.active !== false && user.passwordHash && hashPassword(password) === user.passwordHash) {
-        clearFailures(attemptKey);
-        const token = makeSessionToken(user.id, user.role, request.headers.get("user-agent"));
-        const response = createSecureResponse({
-          user: {
-            id: user.id,
-            username: user.username,
-            email: user.email,
-            displayName: user.displayName,
-            role: user.role,
-            moduleAccess: parseModuleAccess(user.moduleAccessJson, user.role as UserRole)
-          }
-        });
-        setAuthCookies(response, token, user.role);
-        return response;
+    const user = await findDatabaseUser(identifier);
+    if (user && user.active !== false && verifyPassword(password, user.passwordHash)) {
+      if (passwordNeedsRehash(user.passwordHash)) {
+        const prisma = await getPrisma();
+        await prisma.user.update({ where: { id: user.id }, data: { passwordHash: hashPassword(password) } });
       }
-    } finally {
-      await prisma.$disconnect();
+      clearFailures(attemptKey);
+      const token = makeSessionToken(user.id, user.role, request.headers.get("user-agent"));
+      const response = createSecureResponse({
+        user: {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          displayName: user.displayName,
+          role: user.role,
+          moduleAccess: parseModuleAccess(user.moduleAccessJson, user.role as UserRole)
+        }
+      });
+      setAuthCookies(response, token);
+      return response;
     }
   } catch (error) {
     console.error("Login DB error:", error);
   }
 
-  const devUser = findDevUser(identifier, password);
+  const devUser = isDevAuthFallbackEnabled() ? findDevUser(identifier, password) : null;
   if (devUser) {
     clearFailures(attemptKey);
     const token = makeSessionToken(devUser.id, devUser.role, request.headers.get("user-agent"));
@@ -254,7 +211,7 @@ export async function POST(request: NextRequest) {
         moduleAccess: devUser.moduleAccess
       }
     });
-    setAuthCookies(response, token, devUser.role);
+    setAuthCookies(response, token);
     return response;
   }
 
@@ -268,7 +225,7 @@ export async function GET(request: NextRequest) {
     return createSecureResponse({ user: null }, { status: 200 });
   }
 
-  const session = parseSessionToken(token, request.headers.get("user-agent"));
+  const session = parseSignedSessionToken(token, request.headers.get("user-agent"));
   if (!session) {
     return createSecureResponse({ user: null }, { status: 200 });
   }
@@ -278,7 +235,7 @@ export async function GET(request: NextRequest) {
     return createSecureResponse({ user: null }, { status: 200 });
   }
 
-  const devUser = DEV_AUTH_USERS.find((user) => user.id === session.userId && user.role === session.role);
+  const devUser = isDevAuthFallbackEnabled() ? DEV_AUTH_USERS.find((user) => user.id === session.userId && user.role === session.role) : null;
   if (devUser) {
     return createSecureResponse({
       user: {
@@ -298,7 +255,6 @@ export async function GET(request: NextRequest) {
       where: { id: session.userId },
       select: { id: true, username: true, email: true, displayName: true, role: true, moduleAccessJson: true, active: true }
     });
-    await prisma.$disconnect();
     return createSecureResponse({
       user: user && user.active !== false
         ? {
@@ -319,6 +275,5 @@ export async function GET(request: NextRequest) {
 export async function DELETE() {
   const response = createSecureResponse({ success: true });
   response.cookies.delete(SESSION_COOKIE);
-  response.cookies.delete(SESSION_ROLE_COOKIE);
   return response;
 }

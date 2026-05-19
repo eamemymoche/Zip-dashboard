@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ALLOWED_ROLES_TRANSPORT_WRITE } from "../../../lib/auth/role-guards";
-import { getRoleFromRequest, roleGuard } from "../../../lib/auth/server-session";
+import { auditData, requireRole } from "../../../lib/auth/server-session";
 import { createPrismaClient } from "../../../lib/prisma";
 
 async function getPrisma() {
@@ -8,9 +8,8 @@ async function getPrisma() {
 }
 
 export async function POST(request: NextRequest) {
-  const role = getRoleFromRequest(request);
-  const denied = roleGuard(role, ALLOWED_ROLES_TRANSPORT_WRITE);
-  if (denied) return denied;
+  const auth = requireRole(request, ALLOWED_ROLES_TRANSPORT_WRITE);
+  if ("response" in auth) return auth.response;
   let prisma: Awaited<ReturnType<typeof getPrisma>> | null = null;
   try {
     prisma = await getPrisma();
@@ -70,7 +69,7 @@ export async function POST(request: NextRequest) {
       }
 
       await prisma.auditLog.create({
-        data: {
+        data: auditData(auth.userId, {
           entityType: "TransportAssignment",
           entityId: booking.id,
           action: previous ? "transport.unassigned" : "transport.note_only",
@@ -84,7 +83,7 @@ export async function POST(request: NextRequest) {
             vehicleCode: null,
             adminNote: updatedBooking.adminNote ?? null
           })
-        }
+        })
       });
 
       const refreshedBooking = await prisma.booking.update({
@@ -135,7 +134,8 @@ export async function POST(request: NextRequest) {
       create: {
         bookingId: booking.id,
         driverId: driver.id,
-        vehicleId: vehicle?.id ?? null
+        vehicleId: vehicle?.id ?? null,
+        assignedBy: auth.userId.startsWith("dev-") ? null : auth.userId
       },
       include: {
         driver: true,
@@ -144,7 +144,7 @@ export async function POST(request: NextRequest) {
     });
 
     await prisma.auditLog.create({
-      data: {
+      data: auditData(auth.userId, {
         entityType: "TransportAssignment",
         entityId: booking.id,
         action: previous ? "transport.reassigned" : "transport.assigned",
@@ -158,7 +158,7 @@ export async function POST(request: NextRequest) {
           vehicleCode: vehicle?.code ?? null,
           adminNote: updatedBooking.adminNote ?? null
         })
-      }
+      })
     });
 
     const refreshedBooking = await prisma.booking.update({
@@ -182,17 +182,12 @@ export async function POST(request: NextRequest) {
       { error: "Internal server error" },
       { status: 500 }
     );
-  } finally {
-    if (prisma) {
-      await prisma.$disconnect();
-    }
   }
 }
 
 export async function DELETE(request: NextRequest) {
-  const role = getRoleFromRequest(request);
-  const denied = roleGuard(role, ALLOWED_ROLES_TRANSPORT_WRITE);
-  if (denied) return denied;
+  const auth = requireRole(request, ALLOWED_ROLES_TRANSPORT_WRITE);
+  if ("response" in auth) return auth.response;
   let prisma: Awaited<ReturnType<typeof getPrisma>> | null = null;
   try {
     prisma = await getPrisma();
@@ -232,7 +227,7 @@ export async function DELETE(request: NextRequest) {
       });
 
       await prisma.auditLog.create({
-        data: {
+        data: auditData(auth.userId, {
           entityType: "TransportAssignment",
           entityId: booking.id,
           action: "transport.unassigned",
@@ -244,7 +239,7 @@ export async function DELETE(request: NextRequest) {
             driverCode: null,
             vehicleCode: null
           })
-        }
+        })
       });
     }
 
@@ -261,9 +256,5 @@ export async function DELETE(request: NextRequest) {
       { error: "Internal server error" },
       { status: 500 }
     );
-  } finally {
-    if (prisma) {
-      await prisma.$disconnect();
-    }
   }
 }

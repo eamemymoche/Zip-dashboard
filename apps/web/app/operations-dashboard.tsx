@@ -11,6 +11,7 @@ import StaffingBoardView from "./staffing-board-view";
 import PersonnelView from "./personnel-view";
 import MasterView from "./master-view";
 import AccountingView from "./accounting-view";
+import { BackupView } from "./backup-view";
 import OrderDetailRow from "./order-detail-row";
 import {
   buildAssistantDriverLoads,
@@ -42,7 +43,7 @@ import type {
   OrderRecord
 } from "../lib/ops-data";
 
-type MainView = "overview" | "orderlist" | "transport" | "staffing" | "personnel" | "accounting" | "changelog" | "useraccess" | "master";
+type MainView = "overview" | "orderlist" | "transport" | "staffing" | "personnel" | "accounting" | "changelog" | "useraccess" | "master" | "backup";
 type TransportView = "assign" | "recheck" | "sheet";
 type StaffingView = "setup" | "board" | "kpi";
 type MasterTab = "summary" | "pivot" | "products";
@@ -119,6 +120,9 @@ function navIcon(key: MainView) {
   if (key === "master") {
     return <svg {...common}><ellipse cx="12" cy="5" rx="7" ry="3" /><path d="M5 5v7c0 1.7 3.1 3 7 3s7-1.3 7-3V5" /><path d="M5 12v7c0 1.7 3.1 3 7 3s7-1.3 7-3v-7" /></svg>;
   }
+  if (key === "backup") {
+    return <svg {...common}><path d="M12 3v10" /><path d="M8 9l4 4 4-4" /><path d="M4 17h16" /><path d="M6 21h12" /></svg>;
+  }
   if (key === "useraccess") {
     return <svg {...common}><circle cx="10" cy="8" r="3" /><path d="M4 19c1.2-2.8 3.5-4 6-4" /><path d="M17 8h3" /><path d="M18.5 6.5v3" /><path d="M15.5 16.5h3" /><path d="M17 15v3" /></svg>;
   }
@@ -173,6 +177,7 @@ export function OperationsDashboard({ initialData }: { initialData: DashboardSee
   const [transportView, setTransportView] = useState<TransportView>("assign");
   const [staffingView, setStaffingView] = useState<StaffingView>("setup");
   const [masterView, setMasterView] = useState<MasterTab>("summary");
+  const [backupMode, setBackupMode] = useState<"always-on" | "daily-snapshot" | "plugin-vault" | "overlap-recovery">("always-on");
   const [orderDateStart, setOrderDateStart] = useState(todayIso);
   const [orderDateEnd, setOrderDateEnd] = useState(todayIso);
   const [orderSearch, setOrderSearch] = useState("");
@@ -226,7 +231,7 @@ export function OperationsDashboard({ initialData }: { initialData: DashboardSee
 
   useEffect(() => {
     if (!hasModuleAccess(mainView)) {
-      const firstAccessible = (["overview", "orderlist", "transport", "staffing", "personnel", "accounting", "changelog", "useraccess", "master"] as MainView[])
+      const firstAccessible = (["overview", "orderlist", "transport", "staffing", "personnel", "accounting", "changelog", "useraccess", "master", "backup"] as MainView[])
         .find((board) => hasModuleAccess(board));
       if (firstAccessible) {
         setMainView(firstAccessible);
@@ -251,7 +256,7 @@ export function OperationsDashboard({ initialData }: { initialData: DashboardSee
     id: "",
     name: "",
     nickname: "",
-    role: "Staff" as "Staff" | "Driver",
+    role: "Staff" as EmployeeRecord["role"],
     phone: "",
     phone2: "",
     startDate: "",
@@ -414,7 +419,7 @@ export function OperationsDashboard({ initialData }: { initialData: DashboardSee
     } else if (assignSortDir === "asc") {
       setAssignSortDir("desc");
     } else {
-      setAssignSortField("");
+      setAssignSortField("time");
       setAssignSortDir("asc");
     }
   }
@@ -485,16 +490,16 @@ export function OperationsDashboard({ initialData }: { initialData: DashboardSee
   const assistantActiveModule =
     mainView === "transport"
       ? transportView === "assign"
-        ? "งานจัดรถ"
+        ? (lang === "en" ? "Transport Assignment" : "งานจัดรถ")
         : transportView === "recheck"
-          ? "ติดตามการรับ"
-          : "ใบงานคนขับ"
+          ? (lang === "en" ? "Pickup Recheck" : "ติดตามการรับ")
+          : (lang === "en" ? "Driver Job Sheet" : "ใบงานคนขับ")
       : mainView === "staffing"
         ? staffingView === "setup"
-          ? "จัดสตาฟ"
+          ? (lang === "en" ? "Staff Setup" : "จัดสตาฟ")
           : staffingView === "board"
-            ? "กระดานสตาฟ"
-            : "KPI สตาฟ"
+            ? (lang === "en" ? "Staff Board" : "กระดานสตาฟ")
+            : (lang === "en" ? "Staff KPI" : "KPI สตาฟ")
         : mainView === "master"
           ? masterView === "summary"
             ? "Operational Log"
@@ -502,7 +507,9 @@ export function OperationsDashboard({ initialData }: { initialData: DashboardSee
               ? "Pivot Summary"
               : "Product Database"
           : mainView === "personnel"
-            ? "ฐานข้อมูลบุคลากร"
+            ? (lang === "en" ? "Personnel Database" : "ฐานข้อมูลบุคลากร")
+            : mainView === "backup"
+              ? "Backup & Recovery"
             : "Order List";
   const assistantDriverLoads = buildAssistantDriverLoads(orders, employees, assistantFocusDate);
   const assistantPriorityBookings = buildAssistantPriorityBookings(
@@ -1086,7 +1093,8 @@ if (loading) {
           ["accounting", lang === "en" ? "Accounting" : "งานบัญชี"],
           ["changelog", lang === "en" ? "Changelog" : "บันทึกแก้ไข"],
           ["useraccess", lang === "en" ? "User Controls" : "ตั้งค่าผู้ใช้"],
-          ["master", t("nav.master")]
+          ["master", t("nav.master")],
+          ["backup", lang === "en" ? "Backup" : "สำรองข้อมูล"]
         ] as [MainView, string][])
           .filter(([key]) => hasModuleAccess(key))
           .map(([key, label]) => (
@@ -1112,7 +1120,7 @@ if (loading) {
                 <p>{t("overview.todaySummary")} - {orderDateStart}</p>
               </div>
               <label style={{display:"flex",alignItems:"center",gap:"8px"}}>
-                <span style={{fontSize:"12px",fontWeight:700,color:"#64748b"}}>วันที่</span>
+                <span style={{fontSize:"12px",fontWeight:700,color:"#64748b"}}>{lang === "en" ? "Date" : "วันที่"}</span>
                 <DatePicker
                   className="overview-date-picker"
                   value={orderDateStart}
@@ -1126,14 +1134,14 @@ if (loading) {
               <div className="overview-stat-card emerald">
                 <div className="overview-stat-icon">{overviewMetricIcon("orders")}</div>
                 <div className="overview-stat-body">
-                  <span>รายการวันนี้</span>
+                  <span>{lang === "en" ? "Today Orders" : "รายการวันนี้"}</span>
                   <strong>{orders.filter(o => o.date === orderDateStart).length}</strong>
                 </div>
               </div>
               <div className="overview-stat-card blue">
                 <div className="overview-stat-icon">{overviewMetricIcon("pax")}</div>
                 <div className="overview-stat-body">
-                  <span>Pax วันนี้ (รับ)</span>
+                  <span>{lang === "en" ? "Today Pax (Pickup)" : "Pax วันนี้ (รับ)"}</span>
                   <strong>{orders.filter(o => o.date === orderDateStart && o.boarding !== "NO_SHOW").reduce((s, o) => s + o.join + o.visitor, 0)}</strong>
                 </div>
               </div>
@@ -1147,21 +1155,21 @@ if (loading) {
               <div className="overview-stat-card amber">
                 <div className="overview-stat-icon">{overviewMetricIcon("transport")}</div>
                 <div className="overview-stat-body">
-                  <span>ยังไม่ได้จัดรถ</span>
+                  <span>{lang === "en" ? "Unassigned Transport" : "ยังไม่ได้จัดรถ"}</span>
                   <strong>{orders.filter(o => o.date === orderDateStart && !o.driver && o.boarding !== "CANCELLED").length}</strong>
                 </div>
               </div>
               <div className="overview-stat-card purple">
                 <div className="overview-stat-icon">{overviewMetricIcon("staff")}</div>
                 <div className="overview-stat-body">
-                  <span>รอ Staff จัด</span>
+                  <span>{lang === "en" ? "Pending Staff" : "รอ Staff จัด"}</span>
                   <strong>{orders.filter(o => o.date === orderDateStart && o.boarding !== "CANCELLED" && o.boarding !== "NO_SHOW" && o.assignedStaff.length < 2).length}</strong>
                 </div>
               </div>
               <div className="overview-stat-card red">
                 <div className="overview-stat-icon">{overviewMetricIcon("waiting")}</div>
                 <div className="overview-stat-body">
-                  <span>ยังรอรับ (Waiting)</span>
+                  <span>{lang === "en" ? "Waiting Pickup" : "ยังรอรับ (Waiting)"}</span>
                   <strong>{orders.filter(o => o.date === orderDateStart && o.boarding === "WAITING").length}</strong>
                 </div>
               </div>
@@ -1169,7 +1177,7 @@ if (loading) {
 
             <div className="overview-two-col">
               <div>
-                <h3 style={{margin:"0 0 12px",fontSize:"15px",fontWeight:800}}>📊 สรุปตาม Agent</h3>
+                <h3 style={{margin:"0 0 12px",fontSize:"15px",fontWeight:800}}>📊 {lang === "en" ? "Agent Summary" : "สรุปตาม Agent"}</h3>
                 <div className="table-wrap">
                   <table className="ops-table compact">
                     <thead className="thead-navy">
@@ -1195,7 +1203,7 @@ if (loading) {
                 </div>
               </div>
               <div>
-                <h3 style={{margin:"0 0 12px",fontSize:"15px",fontWeight:800}}>⏰ รอบเวลาวันนี้</h3>
+                <h3 style={{margin:"0 0 12px",fontSize:"15px",fontWeight:800}}>⏰ {lang === "en" ? "Today Time Slots" : "รอบเวลาวันนี้"}</h3>
                 <div className="overview-slot-list">
                   {initialData.timeSlots.map(slot => {
                     const slotOrders = orders.filter(o => o.date === orderDateStart && o.time === slot);
@@ -1215,7 +1223,7 @@ if (loading) {
             </div>
 
             <div style={{marginTop:"20px"}}>
-              <h3 style={{margin:"0 0 12px",fontSize:"15px",fontWeight:800}}>🚨 แจ้งเตือนวันนี้</h3>
+              <h3 style={{margin:"0 0 12px",fontSize:"15px",fontWeight:800}}>🚨 {lang === "en" ? "Today Alerts" : "แจ้งเตือนวันนี้"}</h3>
               <div className="alert-list">
                 {orders.filter(o => o.date === orderDateStart && o.boarding === "NO_SHOW").slice(0,5).map(o => (
                   <div className="alert-item danger" key={o.id}>
@@ -1224,16 +1232,16 @@ if (loading) {
                 ))}
                 {orders.filter(o => o.date === orderDateStart && !o.driver && o.boarding !== "CANCELLED").slice(0,3).map(o => (
                   <div className="alert-item warning" key={o.id}>
-                    <span>🚌 ยังไม่ได้จัดรถ:</span> <strong>{o.name}</strong> / {o.hotel} / {o.time}
+                    <span>🚌 {lang === "en" ? "Unassigned transport:" : "ยังไม่ได้จัดรถ:"}</span> <strong>{o.name}</strong> / {o.hotel} / {o.time}
                   </div>
                 ))}
                 {orders.filter(o => o.date === orderDateStart && o.boarding !== "CANCELLED" && o.boarding !== "NO_SHOW" && o.assignedStaff.length < 2).slice(0,3).map(o => (
                   <div className="alert-item info" key={o.id}>
-                    <span>🧑‍💼 รอจัดสตาฟ:</span> <strong>{o.name}</strong> / {o.packet} / {o.time}
+                    <span>🧑‍💼 {lang === "en" ? "Pending staff:" : "รอจัดสตาฟ:"}</span> <strong>{o.name}</strong> / {o.packet} / {o.time}
                   </div>
                 ))}
                 {orders.filter(o => o.date === orderDateStart).length === 0 && (
-                  <div className="alert-item" style={{color:"#94a3b8"}}>ไม่มีรายการในวันที่เลือก</div>
+                  <div className="alert-item" style={{color:"#94a3b8"}}>{lang === "en" ? "No orders on the selected date" : "ไม่มีรายการในวันที่เลือก"}</div>
                 )}
               </div>
             </div>
@@ -1259,11 +1267,11 @@ if (loading) {
                       );
                     }}
                     style={{ cursor: "pointer" }}
-                    title={isSelected ? "คลิกเพื่อยกเลิกกรอง" : "คลิกเพื่อกรองรอบนี้"}
+                    title={isSelected ? (lang === "en" ? "Click to clear this slot filter" : "คลิกเพื่อยกเลิกกรอง") : (lang === "en" ? "Click to filter this slot" : "คลิกเพื่อกรองรอบนี้")}
                   >
                     <span>{card.slot}{isSelected ? " ✓" : ""}</span>
-                    <strong>Pax (รับ): {card.pax}</strong>
-                    <em>Join (เล่น): {card.join}</em>
+                    <strong>{lang === "en" ? "Pax (Pickup)" : "Pax (รับ)"}: {card.pax}</strong>
+                    <em>{lang === "en" ? "Join" : "Join (เล่น)"}: {card.join}</em>
                   </div>
                 );
               })}
@@ -1272,11 +1280,11 @@ if (loading) {
             <div className="section-header">
               <div>
                 <h2>Order List</h2>
-                <p>History Log</p>
+                <p>{lang === "en" ? "History Log" : "History Log"}</p>
               </div>
               <div className="action-group">
 <button className="primary-button order-add-button" onClick={() => setShowOrderModal(true)} disabled={!canEditOrders} title={!canEditOrders ? "ไม่มีสิทธิ์เพิ่มรายการ" : ""} type="button">
-                  + เพิ่มรายการใหม่
+                  {lang === "en" ? "+ New Order" : "+ เพิ่มรายการใหม่"}
                 </button>
                 <div className="export-dropdown-wrap">
                   <button
@@ -1284,7 +1292,7 @@ if (loading) {
                     onClick={() => setShowExportMenu((v) => !v)}
                     type="button"
                   >
-                    ส่งออกไฟล์ ▾
+                    {lang === "en" ? "Export ▾" : "ส่งออกไฟล์ ▾"}
                   </button>
                   {showExportMenu ? (
                     <div className="export-menu">
@@ -1318,7 +1326,7 @@ if (loading) {
             <div className="filter-panel">
               <div className="filter-row">
                 <label className="compact">
-                    <span>จาก</span>
+                    <span>{lang === "en" ? "From" : "จาก"}</span>
                   <DatePicker
                     value={orderDateStart}
                     onChange={onStartDateChange}
@@ -1326,7 +1334,7 @@ if (loading) {
                   />
                 </label>
                 <label className="compact">
-                    <span>ถึง</span>
+                    <span>{lang === "en" ? "To" : "ถึง"}</span>
                   <DatePicker
                     value={orderDateEnd}
                     onChange={onEndDateChange}
@@ -1334,10 +1342,10 @@ if (loading) {
                   />
                 </label>
                 <label className="search-label">
-                  <span>ค้นหาอัจฉริยะ</span>
+                  <span>{lang === "en" ? "Smart Search" : "ค้นหาอัจฉริยะ"}</span>
                   <input
                     onChange={(event) => setOrderSearch(event.target.value)}
-                    placeholder="ชื่อ/Booking/เบอร์/เอเจ้น"
+                    placeholder={lang === "en" ? "Name/Booking/Phone/Agent" : "ชื่อ/Booking/เบอร์/เอเจ้น"}
                     type="text"
                     value={orderSearch}
                     className="search-input"
@@ -1351,15 +1359,15 @@ if (loading) {
                 <thead>
                   <tr>
                     <th className={`sortable${orderSortField === "id" ? " sort-active" : ""}`} onClick={() => toggleSort("id")}>ID{sortIcon("id")}</th>
-                    <th className={`sortable${orderSortField === "date" ? " sort-active" : ""}`} onClick={() => toggleSort("date")}>วันที่{sortIcon("date")}</th>
-                    <th className={`sortable${orderSortField === "time" ? " sort-active" : ""}`} onClick={() => toggleSort("time")}>รอบ{sortIcon("time")}</th>
+                    <th className={`sortable${orderSortField === "date" ? " sort-active" : ""}`} onClick={() => toggleSort("date")}>{lang === "en" ? "Date" : "วันที่"}{sortIcon("date")}</th>
+                    <th className={`sortable${orderSortField === "time" ? " sort-active" : ""}`} onClick={() => toggleSort("time")}>{lang === "en" ? "Slot" : "รอบ"}{sortIcon("time")}</th>
                     <th className={`sortable${orderSortField === "agent" ? " sort-active" : ""}`} onClick={() => toggleSort("agent")}>Agent{sortIcon("agent")}</th>
                     <th className={`sortable${orderSortField === "booking" ? " sort-active" : ""}`} onClick={() => toggleSort("booking")}>Booking No.{sortIcon("booking")}</th>
                     <th className={`sortable${orderSortField === "packet" ? " sort-active" : ""}`} onClick={() => toggleSort("packet")}>Packet{sortIcon("packet")}</th>
-                    <th className={`sortable${orderSortField === "name" ? " sort-active" : ""}`} onClick={() => toggleSort("name")}>ลูกค้า{sortIcon("name")}</th>
-                    <th className={`center sortable${orderSortField === "pax" ? " sort-active" : ""}`} onClick={() => toggleSort("pax")}>Pax (เพื่อรับ){sortIcon("pax")}</th>
-                    <th className={`center sortable${orderSortField === "join" ? " sort-active" : ""}`} onClick={() => toggleSort("join")}>Join (คนเล่น){sortIcon("join")}</th>
-                    <th className={`sortable${orderSortField === "hotel" ? " sort-active" : ""}`} onClick={() => toggleSort("hotel")}>โรงแรม{sortIcon("hotel")}</th>
+                    <th className={`sortable${orderSortField === "name" ? " sort-active" : ""}`} onClick={() => toggleSort("name")}>{lang === "en" ? "Customer" : "ลูกค้า"}{sortIcon("name")}</th>
+                    <th className={`center sortable${orderSortField === "pax" ? " sort-active" : ""}`} onClick={() => toggleSort("pax")}>{lang === "en" ? "Pax (Pickup)" : "Pax (เพื่อรับ)"}{sortIcon("pax")}</th>
+                    <th className={`center sortable${orderSortField === "join" ? " sort-active" : ""}`} onClick={() => toggleSort("join")}>Join {lang === "en" ? "" : "(คนเล่น)"}{sortIcon("join")}</th>
+                    <th className={`sortable${orderSortField === "hotel" ? " sort-active" : ""}`} onClick={() => toggleSort("hotel")}>{lang === "en" ? "Hotel" : "โรงแรม"}{sortIcon("hotel")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1416,11 +1424,15 @@ if (loading) {
               </div>
             </div>
             <div className="subnav">
-              {[
+              {(lang === "en" ? [
+                ["assign", "1. Pickup Assignment"],
+                ["recheck", "2. Pickup Recheck"],
+                ["sheet", "3. Driver Job Sheet"]
+              ] : [
                 ["assign", "1. จัดรถรับลูกค้า (Assign)"],
                 ["recheck", "2. ติดตามสถานะรับ (Recheck)"],
                 ["sheet", "3. ใบงานคนขับ (Sheet)"]
-              ].map(([key, label]) => (
+              ]).map(([key, label]) => (
                 <button
                   className={transportView === key ? "subnav-button active" : "subnav-button"}
                   key={key}
@@ -1452,6 +1464,7 @@ if (loading) {
                 savingOrderId={transportSavingOrderId}
                 onChangeLocalAdminNote={updateOrderAdminNote}
                 onSaveTransport={saveTransportAssignment}
+                lang={lang}
               />
             ) : null}
 
@@ -1474,6 +1487,7 @@ if (loading) {
                 onSetTransportDate={setTransportDate}
                 onUpdateOrder={updateOrder}
                 onSavePickupStatus={savePickupStatus}
+                lang={lang}
               />
             ) : null}
 
@@ -1509,11 +1523,15 @@ if (loading) {
               </div>
             </div>
             <div className="subnav">
-              {[
+              {(lang === "en" ? [
+                ["setup", "1. Field Staff Setup"],
+                ["board", "2. Staff Work Board"],
+                ["kpi", "3. Staff KPI"]
+              ] : [
                 ["setup", "1. จัดไกด์สนาม (Setup)"],
                 ["board", "2. หน้าบอร์ดสรุปงาน"],
                 ["kpi", "3. สรุปผลงานสตาฟ (KPI)"]
-              ].map(([key, label]) => (
+              ]).map(([key, label]) => (
                 <button
                   className={staffingView === key ? "subnav-button active" : "subnav-button"}
                   key={key}
@@ -1538,6 +1556,7 @@ if (loading) {
                 onStaffPacketChange={setStaffPacket}
                 updateOrder={updateOrder}
                 saveStaffAssignment={saveStaffAssignment}
+                lang={lang}
               />
             ) : null}
 
@@ -1547,6 +1566,7 @@ if (loading) {
                 boardOrders={boardOrders}
                 initialData={initialData}
                 onBoardDateChange={setBoardDate}
+                lang={lang}
               />
             ) : null}
 
@@ -1573,7 +1593,7 @@ if (loading) {
       ) : null}
 
       {mainView === "personnel" ? (
-        <PersonnelView
+          <PersonnelView
           employees={employees}
           expandedEmployeeId={expandedEmployeeId}
           onToggleEmployee={(employeeId) =>
@@ -1581,10 +1601,11 @@ if (loading) {
           }
           onOpenNewEmployee={() => setShowEmployeeModal(true)}
           onEditEmployee={openEditEmployeeModal}
+          lang={lang}
         />
       ) : null}
 
-      {mainView === "accounting" ? <AccountingView orders={orders} focusDate={orderDateStart} /> : null}
+      {mainView === "accounting" ? <AccountingView orders={orders} focusDate={orderDateStart} lang={lang} /> : null}
 
       {mainView === "master" ? (
         <MasterView
@@ -1601,15 +1622,20 @@ if (loading) {
           onTogglePacketActive={toggleProductPacketActive}
           formatStatus={formatStatus}
           statusClass={statusClass}
+          lang={lang}
 />
       ) : null}
 
+      {mainView === "backup" ? (
+        <BackupView backupMode={backupMode} onBackupModeChange={setBackupMode} lang={lang} />
+      ) : null}
+
       {mainView === "useraccess" && hasModuleAccess("useraccess") ? (
-        <UserAccessView initialUsers={[]} />
+        <UserAccessView initialUsers={[]} lang={lang} />
       ) : null}
 
       {mainView === "changelog" && hasModuleAccess("changelog") ? (
-        <ChangeLogView />
+        <ChangeLogView lang={lang} />
       ) : null}
 
       {showOrderModal ? (
@@ -1766,13 +1792,15 @@ if (loading) {
                   onChange={(event) =>
                     setNewEmployee((current) => ({
                       ...current,
-                      role: event.target.value as "Staff" | "Driver"
+                      role: event.target.value as EmployeeRecord["role"]
                     }))
                   }
                   value={newEmployee.role}
                 >
-                  <option value="Staff">ไกด์สนาม (Staff)</option>
-                  <option value="Driver">คนขับรถ (Driver)</option>
+                  <option value="Staff">{lang === "en" ? "Staff (Guide)" : "ไกด์สนาม (Staff)"}</option>
+                  <option value="Driver">{lang === "en" ? "Driver" : "คนขับรถ (Driver)"}</option>
+                  <option value="Officer">{lang === "en" ? "Officer" : "เจ้าหน้าที่ (Officer)"}</option>
+                  <option value="Accounting">{lang === "en" ? "Accounting" : "บัญชี (Accounting)"}</option>
                 </select>
               </label>
               <label>

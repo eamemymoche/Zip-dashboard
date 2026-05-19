@@ -1,39 +1,19 @@
-import { createHash } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { createPrismaClient } from "../../../../lib/prisma";
+import { auditData, hashPassword, originGuard, parseSignedSessionToken, verifyPassword } from "../../../../lib/auth/server-session";
 
 const SESSION_COOKIE = "zcc_session";
-const SESSION_SECRET = process.env.SESSION_SECRET ?? "dev-secret-change-in-production";
-
-function hashUserAgent(userAgent: string | null) {
-  return createHash("sha256").update((userAgent ?? "unknown") + SESSION_SECRET).digest("hex").slice(0, 12);
-}
-
-function parseSessionToken(token: string, userAgent: string | null): { userId: string; role: string; ts: number } | null {
-  try {
-    const [payload, sig] = token.split(".");
-    const expectedSig = createHash("sha256").update(payload + SESSION_SECRET).digest("hex").slice(0, 16);
-    if (sig !== expectedSig) return null;
-    const decoded = Buffer.from(payload, "base64url").toString("utf8");
-    const [userId, role, ts, uaHash] = decoded.split(":");
-    if (uaHash !== hashUserAgent(userAgent)) return null;
-    return { userId, role, ts: Number(ts) };
-  } catch {
-    return null;
-  }
-}
-
-function hashPassword(password: string) {
-  return createHash("sha256").update(password + SESSION_SECRET).digest("hex");
-}
 
 export async function PATCH(request: NextRequest) {
+  const originDenied = originGuard(request);
+  if (originDenied) return originDenied;
+
   const token = request.cookies.get(SESSION_COOKIE)?.value;
   if (!token) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const session = parseSessionToken(token, request.headers.get("user-agent"));
+  const session = parseSignedSessionToken(token, request.headers.get("user-agent"));
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -72,7 +52,7 @@ export async function PATCH(request: NextRequest) {
       if (!currentPassword) {
         return NextResponse.json({ error: "Current password is required" }, { status: 400 });
       }
-      if (!user.passwordHash || hashPassword(currentPassword) !== user.passwordHash) {
+      if (!verifyPassword(currentPassword, user.passwordHash)) {
         return NextResponse.json({ error: "Current password is incorrect" }, { status: 400 });
       }
       if (newPassword.length < 6) {
@@ -106,20 +86,17 @@ export async function PATCH(request: NextRequest) {
     });
 
     await prisma.auditLog.create({
-      data: {
-        actorId: user.id,
+      data: auditData(user.id, {
         entityType: "User",
         entityId: user.id,
         action: "user.updated",
         beforeJson: JSON.stringify({ displayName: user.displayName }),
         afterJson: JSON.stringify({ displayName: updated.displayName, passwordChanged: Boolean(updateData.passwordHash) })
-      }
+      })
     });
 
     return NextResponse.json({ user: updated });
   } catch {
     return NextResponse.json({ error: "Failed to update profile" }, { status: 500 });
-  } finally {
-    await prisma.$disconnect();
   }
 }

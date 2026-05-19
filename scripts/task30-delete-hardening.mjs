@@ -14,11 +14,11 @@ if (!connectionString) {
 }
 
 function makeManagerCookie() {
-  const payloadPlain = `task30-manager:MANAGER:${Date.now()}`;
+  const payloadPlain = `task30-manager:MANAGER:${Date.now()}:verify`;
   const payload = Buffer.from(payloadPlain, "utf8").toString("base64url");
   const sig = crypto.createHash("sha256").update(payload + sessionSecret).digest("hex").slice(0, 16);
   const token = `${payload}.${sig}`;
-  return `zcc_session=${token}; zcc_role=MANAGER`;
+  return `zcc_session=${token}`;
 }
 
 const authCookie = makeManagerCookie();

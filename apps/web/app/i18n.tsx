@@ -41,6 +41,15 @@ type TranslationKey =
   | "master.products"
   | "personnel.title"
   | "personnel.newEmployee"
+  | "personnel.countPrefix"
+  | "personnel.section.staff"
+  | "personnel.section.driver"
+  | "personnel.section.officer"
+  | "personnel.section.accounting"
+  | "personnel.role.staff"
+  | "personnel.role.driver"
+  | "personnel.role.officer"
+  | "personnel.role.accounting"
   | "common.boarding.waiting"
   | "common.boarding.boarding"
   | "common.boarding.noShow"
@@ -95,6 +104,15 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     "master.products": "3. ตั้งค่าแพ็กเกจ",
     "personnel.title": "ฐานข้อมูลบุคลากร",
     "personnel.newEmployee": "+ เพิ่มพนักงานใหม่",
+    "personnel.countPrefix": "{total} คน ({staff} ไกด์สนาม / {driver} คนขับรถ / {officer} Officer / {accounting} Accounting)",
+    "personnel.section.staff": "ไกด์สนาม (Staff)",
+    "personnel.section.driver": "คนขับรถ (Driver)",
+    "personnel.section.officer": "เจ้าหน้าที่ (Officer)",
+    "personnel.section.accounting": "บัญชี (Accounting)",
+    "personnel.role.staff": "Staff",
+    "personnel.role.driver": "Driver",
+    "personnel.role.officer": "Officer",
+    "personnel.role.accounting": "Accounting",
     "common.boarding.waiting": "รอรับ",
     "common.boarding.boarding": "รับแล้ว",
     "common.boarding.noShow": "ไม่มา",
@@ -148,6 +166,15 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     "master.products": "3. Package Setup",
     "personnel.title": "Personnel Database",
     "personnel.newEmployee": "+ Add Employee",
+    "personnel.countPrefix": "{total} people ({staff} staff / {driver} drivers / {officer} officers / {accounting} accounting)",
+    "personnel.section.staff": "Staff (Guide)",
+    "personnel.section.driver": "Driver",
+    "personnel.section.officer": "Officer",
+    "personnel.section.accounting": "Accounting",
+    "personnel.role.staff": "Staff",
+    "personnel.role.driver": "Driver",
+    "personnel.role.officer": "Officer",
+    "personnel.role.accounting": "Accounting",
     "common.boarding.waiting": "Waiting",
     "common.boarding.boarding": "Boarded",
     "common.boarding.noShow": "No Show",

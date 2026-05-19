@@ -14,9 +14,9 @@ if (!connectionString) {
 }
 
 function managerCookie() {
-  const payload = Buffer.from(`milestone-c:MANAGER:${Date.now()}`, "utf8").toString("base64url");
+  const payload = Buffer.from(`milestone-c:MANAGER:${Date.now()}:verify`, "utf8").toString("base64url");
   const sig = crypto.createHash("sha256").update(payload + sessionSecret).digest("hex").slice(0, 16);
-  return `zcc_session=${payload}.${sig}; zcc_role=MANAGER`;
+  return `zcc_session=${payload}.${sig}`;
 }
 
 const cookie = managerCookie();

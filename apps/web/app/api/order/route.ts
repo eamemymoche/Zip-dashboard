@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ALLOWED_ROLES_ORDER_WRITE } from "../../../lib/auth/role-guards";
-import { getRoleFromRequest, roleGuard } from "../../../lib/auth/server-session";
+import { auditData, requireRole } from "../../../lib/auth/server-session";
 import { createPrismaClient } from "../../../lib/prisma";
 
 async function getPrisma() {
@@ -8,9 +8,8 @@ async function getPrisma() {
 }
 
 export async function POST(request: NextRequest) {
-  const role = getRoleFromRequest(request);
-  const denied = roleGuard(role, ALLOWED_ROLES_ORDER_WRITE);
-  if (denied) return denied;
+  const auth = requireRole(request, ALLOWED_ROLES_ORDER_WRITE);
+  if ("response" in auth) return auth.response;
   let prisma: Awaited<ReturnType<typeof getPrisma>> | null = null;
   try {
     prisma = await getPrisma();
@@ -70,7 +69,8 @@ export async function POST(request: NextRequest) {
         adminNote: adminNote ?? null,
         sourceChannel: body.sourceChannel ?? null,
         status: status ?? "WAITING",
-        productPackageId
+        productPackageId,
+        createdById: auth.userId.startsWith("dev-") ? null : auth.userId
       }
     });
 
@@ -91,17 +91,12 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Order create error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
-  } finally {
-    if (prisma) {
-      await prisma.$disconnect();
-    }
   }
 }
 
 export async function PUT(request: NextRequest) {
-  const role = getRoleFromRequest(request);
-  const denied = roleGuard(role, ALLOWED_ROLES_ORDER_WRITE);
-  if (denied) return denied;
+  const auth = requireRole(request, ALLOWED_ROLES_ORDER_WRITE);
+  if ("response" in auth) return auth.response;
   let prisma: Awaited<ReturnType<typeof getPrisma>> | null = null;
   try {
     prisma = await getPrisma();
@@ -153,7 +148,7 @@ export async function PUT(request: NextRequest) {
         const pkg = await prisma.productPackage.findFirst({
           where: { name: body.productPackageName as string }
         });
-productPackageId = pkg?.id ?? undefined;
+        productPackageId = pkg?.id ?? undefined;
       }
     }
 
@@ -182,7 +177,7 @@ productPackageId = pkg?.id ?? undefined;
     });
 
     await prisma.auditLog.create({
-      data: {
+      data: auditData(auth.userId, {
         entityType: "Booking",
         entityId: booking.id,
         action: "booking.updated",
@@ -196,7 +191,7 @@ productPackageId = pkg?.id ?? undefined;
           agentName: updated.agentName,
           customerName: updated.customerName
         })
-      }
+      })
     });
 
     return NextResponse.json({
@@ -206,17 +201,12 @@ productPackageId = pkg?.id ?? undefined;
   } catch (error) {
     console.error("Order update error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
-  } finally {
-    if (prisma) {
-      await prisma.$disconnect();
-    }
   }
 }
 
 export async function DELETE(request: NextRequest) {
-  const role = getRoleFromRequest(request);
-  const denied = roleGuard(role, ALLOWED_ROLES_ORDER_WRITE);
-  if (denied) return denied;
+  const auth = requireRole(request, ALLOWED_ROLES_ORDER_WRITE);
+  if ("response" in auth) return auth.response;
   let prisma: Awaited<ReturnType<typeof getPrisma>> | null = null;
   try {
     prisma = await getPrisma();
@@ -249,13 +239,13 @@ export async function DELETE(request: NextRequest) {
 
     await prisma.$transaction(async (tx) => {
       await tx.auditLog.create({
-        data: {
+        data: auditData(auth.userId, {
           entityType: "Booking",
           entityId: booking.id,
           action: "booking.deleted",
           beforeJson: JSON.stringify({ bookingNumber }),
           afterJson: JSON.stringify(null)
-        }
+        })
       });
 
       await tx.transportAssignment.deleteMany({
@@ -277,9 +267,5 @@ export async function DELETE(request: NextRequest) {
   } catch (error) {
     console.error("Order delete error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
-  } finally {
-    if (prisma) {
-      await prisma.$disconnect();
-    }
   }
 }

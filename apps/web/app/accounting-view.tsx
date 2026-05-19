@@ -5,6 +5,7 @@ import type { OrderRecord } from "../lib/ops-data";
 type Props = {
   orders: OrderRecord[];
   focusDate: string;
+  lang?: "th" | "en";
 };
 
 function formatAmount(value: number) {
@@ -15,7 +16,39 @@ function estimateRevenue(order: OrderRecord) {
   return (order.join + order.visitor) * 950;
 }
 
-export default function AccountingView({ orders, focusDate }: Props) {
+function agentBadge(agent: string) {
+  const styles: Record<string, { bg: string; color: string; label: string }> = {
+    Klook: { bg: "#fff4e5", color: "#e07b00", label: "KL" },
+    "Trip.com": { bg: "#e8f5e9", color: "#2e7d32", label: "TC" },
+    CTrip: { bg: "#fce4ec", color: "#c62828", label: "CT" },
+    "TTD Global": { bg: "#e3f2fd", color: "#1565c0", label: "TD" },
+    Direct: { bg: "#f3e5f5", color: "#6a1b9a", label: "DR" }
+  };
+  const style = styles[agent] ?? { bg: "#f1f5f9", color: "#475569", label: agent.slice(0, 2).toUpperCase() };
+  return (
+    <span className="accounting-agent-cell">
+      <span className="agent-badge" style={{ background: style.bg, color: style.color }} title={agent}>
+        {style.label}
+      </span>
+      <span>{agent}</span>
+    </span>
+  );
+}
+
+function statusClass(status: string) {
+  if (status === "BOARDED") return "status-boarded";
+  if (status === "NO_SHOW") return "status-noshow";
+  if (status === "RESCHEDULED") return "status-rescheduled";
+  if (status === "CANCELLED") return "status-cancelled";
+  return "status-waiting";
+}
+
+function formatStatus(status: string) {
+  return status.replace("_", " ");
+}
+
+export default function AccountingView({ orders, focusDate, lang = "th" }: Props) {
+  const isEn = lang === "en";
   const dayOrders = orders.filter((order) => order.date === focusDate);
   const totalPax = dayOrders.reduce((sum, order) => sum + order.join + order.visitor, 0);
   const estimatedRevenue = dayOrders.reduce((sum, order) => sum + estimateRevenue(order), 0);
@@ -45,39 +78,39 @@ export default function AccountingView({ orders, focusDate }: Props) {
       <div className="glass-card">
         <div className="section-header section-header-lg">
           <div>
-            <h2>งานบัญชี</h2>
-            <p>สรุปยอดประเมิน รายการรอเช็ก และภาพรวมแยกตามเอเจนต์ของวันปัจจุบัน</p>
+            <h2>{isEn ? "Accounting" : "งานบัญชี"}</h2>
+            <p>{isEn ? "Estimated revenue, review queue, and agency summary for the selected day." : "สรุปยอดประเมิน รายการรอเช็ก และภาพรวมแยกตามเอเจนต์ของวันปัจจุบัน"}</p>
           </div>
         </div>
 
         <div className="accounting-hero-grid">
           <div className="accounting-stat-card emerald">
-            <span>รายการวันนี้</span>
+            <span>{isEn ? "Today Orders" : "รายการวันนี้"}</span>
             <strong>{dayOrders.length}</strong>
             <em>{focusDate}</em>
           </div>
           <div className="accounting-stat-card blue">
-            <span>Pax รวม</span>
+            <span>{isEn ? "Total Pax" : "Pax รวม"}</span>
             <strong>{totalPax}</strong>
-            <em>รวมลูกค้าและผู้ติดตาม</em>
+            <em>{isEn ? "Customers and companions" : "รวมลูกค้าและผู้ติดตาม"}</em>
           </div>
           <div className="accounting-stat-card amber">
             <span>Estimated Revenue</span>
             <strong>{formatAmount(estimatedRevenue)} THB</strong>
-            <em>คำนวณจาก Pax x 950</em>
+            <em>{isEn ? "Calculated from Pax x 950" : "คำนวณจาก Pax x 950"}</em>
           </div>
           <div className="accounting-stat-card slate">
-            <span>รอเช็ก / รับแล้ว</span>
+            <span>{isEn ? "Waiting / Boarded" : "รอเช็ก / รับแล้ว"}</span>
             <strong>{waitingOrders} / {boardedOrders}</strong>
-            <em>ใช้ดูสถานะพร้อมปิดยอด</em>
+            <em>{isEn ? "Used for daily closing review" : "ใช้ดูสถานะพร้อมปิดยอด"}</em>
           </div>
         </div>
 
         <div className="accounting-grid">
           <div className="accounting-panel">
             <div className="accounting-panel-head">
-              <h3>สรุปตาม Agent</h3>
-              <span>{agentSummary.length} ราย</span>
+              <h3>{isEn ? "Agent Summary" : "สรุปตาม Agent"}</h3>
+              <span>{agentSummary.length} {isEn ? "agents" : "ราย"}</span>
             </div>
             <div className="table-wrap">
               <table className="ops-table accounting-table">
@@ -92,7 +125,7 @@ export default function AccountingView({ orders, focusDate }: Props) {
                 <tbody>
                   {agentSummary.map((row) => (
                     <tr key={row.agent}>
-                      <td>{row.agent}</td>
+                      <td>{agentBadge(row.agent)}</td>
                       <td className="center">{row.bookings}</td>
                       <td className="center">{row.pax}</td>
                       <td className="right">{formatAmount(row.amount)} THB</td>
@@ -105,19 +138,19 @@ export default function AccountingView({ orders, focusDate }: Props) {
 
           <div className="accounting-panel">
             <div className="accounting-panel-head">
-              <h3>รายการรอตรวจ / ล่าสุด</h3>
-              <span>{recentRows.length} รายการ</span>
+              <h3>{isEn ? "Review Queue / Recent" : "รายการรอตรวจ / ล่าสุด"}</h3>
+              <span>{recentRows.length} {isEn ? "items" : "รายการ"}</span>
             </div>
             <div className="table-wrap">
               <table className="ops-table accounting-table">
                 <thead>
                   <tr>
-                    <th>เวลา</th>
+                    <th>{isEn ? "Time" : "เวลา"}</th>
                     <th>Booking</th>
-                    <th>ลูกค้า</th>
+                    <th>{isEn ? "Customer" : "ลูกค้า"}</th>
                     <th>Agent</th>
                     <th className="center">Pax</th>
-                    <th>สถานะ</th>
+                    <th>{isEn ? "Status" : "สถานะ"}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -126,9 +159,13 @@ export default function AccountingView({ orders, focusDate }: Props) {
                       <td className="slot">{order.time}</td>
                       <td className="mono">{order.booking}</td>
                       <td>{order.name}</td>
-                      <td>{order.agent}</td>
+                      <td>{agentBadge(order.agent)}</td>
                       <td className="center">{order.join + order.visitor}</td>
-                      <td>{order.boarding}</td>
+                      <td>
+                        <span className={`status-badge ${statusClass(order.boarding)}`}>
+                          {formatStatus(order.boarding)}
+                        </span>
+                      </td>
                     </tr>
                   ))}
                 </tbody>

@@ -1,7 +1,7 @@
 # AI Agent Operating Manual
 
 Status: Active  
-Last updated: 2026-05-14  
+Last updated: 2026-05-18  
 Scope: Zipline Command Center operating handbook for future AI agents
 
 ## Purpose
@@ -67,6 +67,9 @@ Important current technical facts:
 - when no working DB connection is present, the dashboard falls back to seed-like dashboard data.
 - many dashboard interactions still update local client state and are not yet persisted end to end.
 - the large operational surface still lives in `apps/web/app/operations-dashboard.tsx`, so future refactors must be careful and incremental.
+- auth/security helpers live in `apps/web/lib/auth/server-session.ts`; new write APIs should use `requireRole()` and `auditData()`.
+- signed `zcc_session` is the only role authority; do not reintroduce `zcc_role` as a security source.
+- backup dashboard design lives in `[[Backup Dashboard and Plugin Recovery Design]]`; current UI is a control surface, not real restore execution yet.
 
 ## What Future Agents Must Preserve
 
@@ -87,6 +90,8 @@ Future agents must preserve the following truths while evolving the codebase:
 - Do not remove fallback/export pathways before the DB and recovery model are truly stable.
 - Do not overbuild enterprise auth or infrastructure for this small business stage.
 - Do not silently overwrite operational changes in a multi-user scenario.
+- Do not create new password hashes with SHA-256; use `hashPassword()` from `server-session.ts`.
+- Do not add mutation APIs without session-derived role checks, trusted-origin checks, and audit actor attribution.
 
 ## Linked Handbook Notes
 
@@ -94,6 +99,7 @@ Future agents must preserve the following truths while evolving the codebase:
 - [[Staffing Operations Model]]
 - [[SQL Architecture Strategy]]
 - [[Backup Recovery and Versioning]]
+- [[Backup Dashboard and Plugin Recovery Design]]
 - [[Roles and Permissions]]
 - [[Security and Multi-User Guardrails]]
 - [[Durable Improvements and Premium Roadmap]]

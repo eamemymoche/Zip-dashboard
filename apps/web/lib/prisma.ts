@@ -2,14 +2,22 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
+import pg from "pg";
+
+const { Pool } = pg;
+
+type PrismaGlobal = typeof globalThis & {
+  ziplinePrisma?: PrismaClient;
+  ziplinePgPool?: pg.Pool;
+};
 
 function loadDatabaseUrlFromRootEnvLocal() {
   if (process.env.DATABASE_URL) return;
 
   const candidates = [
-    path.join(process.cwd(), ".env.local"),
-    path.join(process.cwd(), "..", ".env.local"),
-    path.join(process.cwd(), "..", "..", ".env.local")
+    path.join(/*turbopackIgnore: true*/ process.cwd(), ".env.local"),
+    path.join(/*turbopackIgnore: true*/ process.cwd(), "..", ".env.local"),
+    path.join(/*turbopackIgnore: true*/ process.cwd(), "..", "..", ".env.local")
   ];
 
   for (const envPath of candidates) {
@@ -44,7 +52,31 @@ export function createPrismaClient() {
     throw new Error("DATABASE_URL is required for Prisma database access.");
   }
 
-  return new PrismaClient({
-    adapter: new PrismaPg({ connectionString })
+  const globalForPrisma = globalThis as PrismaGlobal;
+  if (globalForPrisma.ziplinePrisma) {
+    return globalForPrisma.ziplinePrisma;
+  }
+
+  const pool =
+    globalForPrisma.ziplinePgPool ??
+    new Pool({
+      connectionString,
+      max: Number(process.env.DATABASE_POOL_MAX ?? 10),
+      idleTimeoutMillis: Number(process.env.DATABASE_POOL_IDLE_TIMEOUT_MS ?? 30_000),
+      connectionTimeoutMillis: Number(process.env.DATABASE_POOL_CONNECTION_TIMEOUT_MS ?? 5_000),
+      statement_timeout: Number(process.env.DATABASE_STATEMENT_TIMEOUT_MS ?? 15_000)
+    });
+
+  pool.on("error", (error) => {
+    console.error("Unexpected PostgreSQL pool error:", error);
   });
+
+  const prisma = new PrismaClient({
+    adapter: new PrismaPg(pool)
+  });
+
+  globalForPrisma.ziplinePgPool = pool;
+  globalForPrisma.ziplinePrisma = prisma;
+
+  return prisma;
 }

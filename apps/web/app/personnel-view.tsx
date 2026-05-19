@@ -10,6 +10,7 @@ type PersonnelViewProps = {
   onToggleEmployee: (employeeId: string) => void;
   onOpenNewEmployee: () => void;
   onEditEmployee: (employee: EmployeeRecord) => void;
+  lang?: "th" | "en";
 };
 
 type PersonnelSectionProps = {
@@ -35,6 +36,8 @@ function PersonnelSection({
   onToggleEmployee,
   onEditEmployee
 }: PersonnelSectionProps) {
+  const { lang } = useLang();
+  const isEn = lang === "en";
   const roleEmployees = employees.filter((employee) => employee.role === role);
 
   return (
@@ -73,19 +76,19 @@ function PersonnelSection({
               <div className="personnel-detail-panel">
                 <div className="personnel-detail-grid">
                   <div className="pd-item">
-                    <span className="pd-label">ชื่อเล่น</span>
+                    <span className="pd-label">{isEn ? "Nickname" : "ชื่อเล่น"}</span>
                     <strong>{employee.nickname}</strong>
                   </div>
                   <div className="pd-item">
-                    <span className="pd-label">เบอร์หลัก</span>
+                    <span className="pd-label">{isEn ? "Main Phone" : "เบอร์หลัก"}</span>
                     <strong>{employee.phone || "-"}</strong>
                   </div>
                   <div className="pd-item">
-                    <span className="pd-label">เบอร์สำรอง</span>
+                    <span className="pd-label">{isEn ? "Backup Phone" : "เบอร์สำรอง"}</span>
                     <strong>{employee.phone2 || "-"}</strong>
                   </div>
                   <div className="pd-item">
-                    <span className="pd-label">วันเข้าทำงาน</span>
+                    <span className="pd-label">{isEn ? "Start Date" : "วันเข้าทำงาน"}</span>
                     <strong>{employee.startDate || "-"}</strong>
                   </div>
                 </div>
@@ -95,7 +98,7 @@ function PersonnelSection({
                   type="button"
                   onClick={() => onEditEmployee(employee)}
                 >
-                  แก้ไขข้อมูล
+                  {isEn ? "Edit Profile" : "แก้ไขข้อมูล"}
                 </button>
               </div>
             ) : null}
@@ -111,11 +114,15 @@ export default function PersonnelView({
   expandedEmployeeId,
   onToggleEmployee,
   onOpenNewEmployee,
-  onEditEmployee
+  onEditEmployee,
+  lang = "th"
 }: PersonnelViewProps) {
   const { t } = useLang();
+  const isEn = lang === "en";
   const staffCount = employees.filter((employee) => employee.role === "Staff").length;
   const driverCount = employees.filter((employee) => employee.role === "Driver").length;
+  const officerCount = employees.filter((employee) => employee.role === "Officer").length;
+  const accountingCount = employees.filter((employee) => employee.role === "Accounting").length;
 
   return (
     <section className="view-section">
@@ -124,7 +131,9 @@ export default function PersonnelView({
           <div>
             <h2>{t("personnel.title")}</h2>
             <p>
-              {employees.length} คน ({staffCount} ไกด์สนาม / {driverCount} คนขับรถ)
+              {isEn
+                ? `${employees.length} people (${staffCount} staff / ${driverCount} drivers / ${officerCount} officers / ${accountingCount} accounting)`
+                : t("personnel.countPrefix").replace("{total}", String(employees.length)).replace("{staff}", String(staffCount)).replace("{driver}", String(driverCount)).replace("{officer}", String(officerCount)).replace("{accounting}", String(accountingCount))}
             </p>
           </div>
           <button className="indigo-button" onClick={onOpenNewEmployee} type="button">
@@ -133,7 +142,7 @@ export default function PersonnelView({
         </div>
 
         <PersonnelSection
-          title="ไกด์สนาม (Staff)"
+          title={t("personnel.section.staff")}
           icon="🧑‍💼"
           role="Staff"
           roleDotClassName="staff-dot"
@@ -145,11 +154,36 @@ export default function PersonnelView({
 
         <div style={{ marginTop: "24px" }}>
           <PersonnelSection
-            title="คนขับรถ (Driver)"
+            title={t("personnel.section.driver")}
             icon="🚌"
             role="Driver"
             roleDotClassName="driver-dot"
             avatarPlaceholderClassName="driver-color"
+            employees={employees}
+            expandedEmployeeId={expandedEmployeeId}
+            onToggleEmployee={onToggleEmployee}
+            onEditEmployee={onEditEmployee}
+          />
+        </div>
+        <div style={{ marginTop: "24px" }}>
+          <PersonnelSection
+            title={t("personnel.section.officer")}
+            icon="📝"
+            role="Officer"
+            roleDotClassName="staff-dot"
+            employees={employees}
+            expandedEmployeeId={expandedEmployeeId}
+            onToggleEmployee={onToggleEmployee}
+            onEditEmployee={onEditEmployee}
+          />
+        </div>
+
+        <div style={{ marginTop: "24px" }}>
+          <PersonnelSection
+            title={t("personnel.section.accounting")}
+            icon="💰"
+            role="Accounting"
+            roleDotClassName="staff-dot"
             employees={employees}
             expandedEmployeeId={expandedEmployeeId}
             onToggleEmployee={onToggleEmployee}
